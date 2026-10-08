@@ -1,0 +1,114 @@
+# VideoDNA Studio — local stack.
+#
+#   docker compose up --build            # postgres, redis, minio, api, worker, web
+#   open http://localhost:3000           # studio
+#   open http://localhost:8000/docs      # API (OpenAPI)
+#   open http://localhost:9001           # MinIO console (videodna / videodna-secret)
+#
+# Everything runs in AI_MOCK_MODE by default: no API keys, no credits spent.
+# Behind a TLS-intercepting proxy, export EXTRA_CA_CERT=/path/to/proxy-ca.pem
+# before building (see README).
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgresql+psycopg://videodna:videodna@postgres:5432/videodna
+  REDIS_URL: redis://redis:6379/0
+  QUEUE_BACKEND: dramatiq
+  STORAGE_BACKEND: s3
+  S3_ENDPOINT_URL: http://minio:9000
+  # Presigned URLs are opened by the browser, so they must use the host name.
+  S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-http://localhost:9000}
+  S3_BUCKET: ${S3_BUCKET:-videodna}
+  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-videodna}
+  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-videodna-secret}
+  API_BASE_URL: ${API_BASE_URL:-http://localhost:8000}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  AI_MOCK_MODE: ${AI_MOCK_MODE:-true}
+  AUTH_DEV_AUTOLOGIN: ${AUTH_DEV_AUTOLOGIN:-true}
+  JWT_SECRET: ${JWT_SECRET:-dev-insecure-change-me-not-for-production}
+  SIGNING_SECRET: ${SIGNING_SECRET:-dev-insecure-change-me-not-for-production}
+  FEATURE_FLAGS: ${FEATURE_FLAGS:-}
+  LOG_JSON: "true"
+
+x-backend-build: &backend-build
+  context: ./apps/api
+  secrets: [ca]
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: videodna
+      POSTGRES_PASSWORD: videodna
+      POSTGRES_DB: videodna
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U videodna -d videodna"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    build:
+      context: ./infra/minio
+      secrets: [ca]
+    image: videodna/minio:local
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-videodna}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-videodna-secret}
+      # Browser uploads PUT parts straight to MinIO and must read the ETag header.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS:-http://localhost:3000}
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  api:
+    build: *backend-build
+    image: videodna/api:local
+    environment: *backend-env
+    ports: ["8000:8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      minio: { condition: service_started }
+
+  worker:
+    build: *backend-build
+    image: videodna/api:local
+    command: ["videodna", "worker", "--processes", "1", "--threads", "2"]
+    environment: *backend-env
+    healthcheck:
+      disable: true
+    volumes: [workdata:/data/work]
+    depends_on:
+      api: { condition: service_healthy }
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      secrets: [ca]
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    image: videodna/web:local
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_healthy }
+
+secrets:
+  ca:
+    file: ${EXTRA_CA_CERT:-./infra/no-extra-ca.pem}
+
+volumes:
+  pgdata:
+  miniodata:
+  workdata:

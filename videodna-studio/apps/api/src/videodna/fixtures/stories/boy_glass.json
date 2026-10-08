@@ -1,0 +1,101 @@
+{
+  "id": "boy_glass",
+  "title": "O copo quebrado",
+  "language": "pt-BR",
+  "narrative": {
+    "summary": "Um menino brinca na sala segurando um copo de vidro. O copo escorrega, cai e quebra no chão. A mãe entra na sala, percebe o copo quebrado e repreende o menino.",
+    "logline": "Um pequeno acidente doméstico e a reação da mãe.",
+    "tone": "cotidiano, levemente cômico",
+    "roles": {
+      "PERSONAGEM_A": "CHARACTER_001",
+      "PERSONAGEM_B": "CHARACTER_002",
+      "OBJETO_A": "OBJECT_001",
+      "AMBIENTE_A": "ENVIRONMENT_001"
+    },
+    "confidence": 0.91
+  },
+  "beats": [
+    {"id": "BEAT_01", "start": 0.0, "end": 0.25, "description": "O menino segura um copo de vidro na sala.", "abstract": "PERSONAGEM_A segura OBJETO_A", "actions": ["ACTION_001"]},
+    {"id": "BEAT_02", "start": 0.25, "end": 0.40, "description": "O copo escorrega da mão e cai.", "abstract": "OBJETO_A cai", "actions": ["ACTION_002"]},
+    {"id": "BEAT_03", "start": 0.40, "end": 0.52, "description": "O copo quebra ao atingir o piso.", "abstract": "OBJETO_A quebra", "actions": ["ACTION_003"]},
+    {"id": "BEAT_04", "start": 0.52, "end": 0.70, "description": "A mãe entra na sala.", "abstract": "PERSONAGEM_B entra", "actions": ["ACTION_004"]},
+    {"id": "BEAT_05", "start": 0.70, "end": 0.82, "description": "A mãe percebe o copo quebrado.", "abstract": "PERSONAGEM_B percebe o evento", "actions": ["ACTION_005"]},
+    {"id": "BEAT_06", "start": 0.82, "end": 1.0, "description": "A mãe repreende o menino.", "abstract": "PERSONAGEM_B reage ao PERSONAGEM_A", "actions": ["ACTION_005"]}
+  ],
+  "entities": [
+    {"key": "ENVIRONMENT_001", "type": "environment", "label": "Sala de estar residencial", "description": "Sala de estar de uma casa simples, iluminada pela luz do dia.", "attributes": {"category": "living_room", "style": "residencial simples", "indoor": true, "timeOfDay": "dia", "tags": ["indoor", "home", "casual"]}, "importance": "IMPORTANT", "confidence": 0.95, "beats": "all", "bbox": {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}},
+    {"key": "WALL_001", "type": "environment_part", "subtype": "wall", "parent": "ENVIRONMENT_001", "label": "Parede", "attributes": {"color": "branco gelo", "colorHex": "#efece4", "material": "pintura lisa"}, "importance": "DECORATIVE", "confidence": 0.9, "beats": "all", "bbox": {"x": 0.0, "y": 0.0, "w": 1.0, "h": 0.55}},
+    {"key": "FLOOR_001", "type": "environment_part", "subtype": "floor", "parent": "ENVIRONMENT_001", "label": "Piso de madeira", "attributes": {"material": "madeira", "color": "castanho claro", "colorHex": "#b88a5a"}, "importance": "IMPORTANT", "confidence": 0.92, "beats": "all", "bbox": {"x": 0.0, "y": 0.7, "w": 1.0, "h": 0.3}},
+    {"key": "CEILING_001", "type": "environment_part", "subtype": "ceiling", "parent": "ENVIRONMENT_001", "label": "Teto", "attributes": {"color": "branco"}, "importance": "DECORATIVE", "confidence": 0.7, "beats": ["BEAT_04", "BEAT_06"], "bbox": {"x": 0.0, "y": 0.0, "w": 1.0, "h": 0.08}},
+    {"key": "WINDOW_001", "type": "environment_part", "subtype": "window", "parent": "ENVIRONMENT_001", "label": "Janela", "attributes": {"frame": "alumínio branco", "curtain": "cortina bege"}, "importance": "DECORATIVE", "confidence": 0.88, "beats": ["BEAT_01", "BEAT_04", "BEAT_06"], "bbox": {"x": 0.68, "y": 0.1, "w": 0.24, "h": 0.36}},
+    {"key": "WINDOW_VIEW_001", "type": "environment_part", "subtype": "window_view", "parent": "WINDOW_001", "label": "Vista da janela: rua residencial", "attributes": {"view": "rua residencial", "tags": ["urban", "day"]}, "importance": "DECORATIVE", "confidence": 0.66, "beats": ["BEAT_01", "BEAT_04", "BEAT_06"], "bbox": {"x": 0.7, "y": 0.12, "w": 0.2, "h": 0.32}},
+    {"key": "LIGHTING_001", "type": "lighting", "parent": "ENVIRONMENT_001", "label": "Luz natural da janela", "attributes": {"source": "natural", "colorTemperature": "neutral", "direction": "lateral direita"}, "importance": "DECORATIVE", "confidence": 0.8, "beats": "all"},
+    {"key": "SOFA_001", "type": "furniture", "parent": "ENVIRONMENT_001", "label": "Sofá cinza", "attributes": {"class": "sofa", "color": "cinza", "colorHex": "#8a8f98", "material": "tecido"}, "importance": "DECORATIVE", "confidence": 0.94, "beats": "all", "bbox": {"x": 0.05, "y": 0.42, "w": 0.42, "h": 0.3}},
+    {"key": "TABLE_001", "type": "furniture", "parent": "ENVIRONMENT_001", "label": "Mesa de centro de madeira", "attributes": {"class": "table", "material": "madeira", "color": "nogueira"}, "importance": "IMPORTANT", "confidence": 0.91, "beats": "all", "bbox": {"x": 0.38, "y": 0.62, "w": 0.3, "h": 0.14}},
+    {"key": "PLANT_001", "type": "object", "parent": "ENVIRONMENT_001", "label": "Planta em vaso", "attributes": {"class": "plant", "size": "média"}, "importance": "DECORATIVE", "confidence": 0.77, "beats": "all", "bbox": {"x": 0.0, "y": 0.3, "w": 0.08, "h": 0.32}},
+    {"key": "CHARACTER_001", "type": "character", "label": "Menino", "description": "Menino de aproximadamente 9 anos, cabelo curto castanho, camiseta vermelha e bermuda jeans.", "attributes": {"apparentAge": "8-10 anos", "ageGroup": "child", "activity": "brincando em casa", "role": "protagonista", "build": "magro"}, "importance": "ESSENTIAL", "confidence": 0.99, "beats": "all", "bbox": {"x": 0.42, "y": 0.22, "w": 0.18, "h": 0.62}, "bboxByBeat": {"BEAT_06": {"x": 0.3, "y": 0.24, "w": 0.18, "h": 0.6}}},
+    {"key": "HAIR_001", "type": "hair", "parent": "CHARACTER_001", "label": "Cabelo curto castanho", "attributes": {"style": "curto", "color": "castanho", "colorHex": "#5b3a22", "texture": "liso"}, "importance": "IMPORTANT", "confidence": 0.95, "beats": "all", "bbox": {"x": 0.47, "y": 0.22, "w": 0.08, "h": 0.07}},
+    {"key": "WARDROBE_001", "type": "wardrobe", "subtype": "upper", "parent": "CHARACTER_001", "label": "Camiseta vermelha", "attributes": {"item": "camiseta", "color": "vermelha", "colorHex": "#c0392b", "pattern": "lisa", "sleeve": "curta"}, "importance": "IMPORTANT", "confidence": 0.98, "beats": "all", "bbox": {"x": 0.43, "y": 0.34, "w": 0.16, "h": 0.2}},
+    {"key": "WARDROBE_002", "type": "wardrobe", "subtype": "lower", "parent": "CHARACTER_001", "label": "Bermuda jeans", "attributes": {"item": "bermuda", "color": "azul jeans", "colorHex": "#4a6fa5", "material": "jeans"}, "importance": "DECORATIVE", "confidence": 0.93, "beats": "all", "bbox": {"x": 0.44, "y": 0.54, "w": 0.14, "h": 0.14}},
+    {"key": "WARDROBE_003", "type": "wardrobe", "subtype": "footwear", "parent": "CHARACTER_001", "label": "Tênis branco", "attributes": {"item": "tênis", "color": "branco", "colorHex": "#f4f4f4"}, "importance": "DECORATIVE", "confidence": 0.81, "beats": "all", "bbox": {"x": 0.44, "y": 0.78, "w": 0.14, "h": 0.06}},
+    {"key": "CHARACTER_002", "type": "character", "label": "Mãe", "description": "Mulher adulta de aproximadamente 40 anos, cabelo comprido preto ondulado, blusa bege e calça jeans.", "attributes": {"apparentAge": "35-45 anos", "ageGroup": "adult", "activity": "entrando na sala", "role": "coadjuvante"}, "importance": "ESSENTIAL", "confidence": 0.97, "beats": ["BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.62, "y": 0.12, "w": 0.2, "h": 0.76}, "bboxByBeat": {"BEAT_04": {"x": 0.78, "y": 0.12, "w": 0.2, "h": 0.76}}},
+    {"key": "HAIR_002", "type": "hair", "parent": "CHARACTER_002", "label": "Cabelo comprido preto ondulado", "attributes": {"style": "comprido", "color": "preto", "colorHex": "#1c1c1c", "texture": "ondulado"}, "importance": "IMPORTANT", "confidence": 0.93, "beats": ["BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.66, "y": 0.12, "w": 0.12, "h": 0.16}},
+    {"key": "WARDROBE_004", "type": "wardrobe", "subtype": "upper", "parent": "CHARACTER_002", "label": "Blusa bege", "attributes": {"item": "blusa", "color": "bege", "colorHex": "#d9c3a5", "sleeve": "longa"}, "importance": "DECORATIVE", "confidence": 0.9, "beats": ["BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.64, "y": 0.28, "w": 0.16, "h": 0.22}},
+    {"key": "WARDROBE_005", "type": "wardrobe", "subtype": "lower", "parent": "CHARACTER_002", "label": "Calça jeans", "attributes": {"item": "calça", "color": "azul escuro", "colorHex": "#2f4a6d", "material": "jeans"}, "importance": "DECORATIVE", "confidence": 0.88, "beats": ["BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.65, "y": 0.5, "w": 0.14, "h": 0.32}},
+    {"key": "ACCESSORY_001", "type": "accessory", "parent": "CHARACTER_002", "label": "Relógio de pulso", "attributes": {"class": "watch", "color": "dourado"}, "importance": "DECORATIVE", "confidence": 0.62, "beats": ["BEAT_05", "BEAT_06"], "bbox": {"x": 0.79, "y": 0.47, "w": 0.03, "h": 0.03}},
+    {"key": "OBJECT_001", "type": "object", "label": "Copo de vidro", "description": "Copo de vidro transparente com água.", "attributes": {"class": "glass", "material": "vidro", "contents": "água"}, "importance": "ESSENTIAL", "confidence": 0.96, "beats": ["BEAT_01", "BEAT_02", "BEAT_03"], "bbox": {"x": 0.55, "y": 0.4, "w": 0.04, "h": 0.07}, "bboxPath": {"BEAT_02": [{"x": 0.55, "y": 0.42, "w": 0.04, "h": 0.07}, {"x": 0.53, "y": 0.8, "w": 0.04, "h": 0.07}]}, "bboxByBeat": {"BEAT_03": {"x": 0.5, "y": 0.84, "w": 0.08, "h": 0.05}}},
+    {"key": "OBJECT_005", "type": "object", "label": "Fragmentos de vidro", "derivedFrom": "OBJECT_001", "attributes": {"class": "fragments", "material": "vidro"}, "importance": "IMPORTANT", "confidence": 0.88, "replaceable": false, "beats": ["BEAT_03", "BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.46, "y": 0.84, "w": 0.14, "h": 0.06}},
+    {"key": "OBJECT_002", "type": "object", "parent": "ENVIRONMENT_001", "label": "Telefone celular", "attributes": {"class": "phone", "color": "preto"}, "importance": "DECORATIVE", "confidence": 0.85, "beats": ["BEAT_01", "BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.2, "y": 0.5, "w": 0.04, "h": 0.03}},
+    {"key": "OBJECT_003", "type": "object", "parent": "ENVIRONMENT_001", "label": "Controle remoto", "attributes": {"class": "remote", "color": "preto"}, "importance": "DECORATIVE", "confidence": 0.74, "beats": ["BEAT_01", "BEAT_02"], "bbox": {"x": 0.47, "y": 0.63, "w": 0.04, "h": 0.02}},
+    {"key": "OBJECT_004", "type": "object", "parent": "ENVIRONMENT_001", "label": "Objeto atrás da mesa", "description": "Objeto parcialmente oculto atrás da mesa de centro.", "attributes": {"class": "box"}, "importance": "DECORATIVE", "confidence": 0.53, "beats": ["BEAT_01", "BEAT_02", "BEAT_03"], "bbox": {"x": 0.62, "y": 0.6, "w": 0.06, "h": 0.05}, "occluded": true, "alternatives": [{"label": "Caixa", "confidence": 0.53, "source": "mock-multimodal"}]}
+  ],
+  "actions": [
+    {"key": "ACTION_001", "verb": "hold", "label": "Menino segura o copo", "actor": "CHARACTER_001", "targets": ["OBJECT_001"], "beats": ["BEAT_01"], "essential": true, "confidence": 0.95},
+    {"key": "ACTION_002", "verb": "fall", "label": "O copo cai", "actor": "OBJECT_001", "targets": ["FLOOR_001"], "beats": ["BEAT_02"], "essential": true, "confidence": 0.93},
+    {"key": "ACTION_003", "verb": "break", "label": "O copo quebra", "actor": "OBJECT_001", "targets": [], "results": ["OBJECT_005"], "beats": ["BEAT_03"], "essential": true, "confidence": 0.94},
+    {"key": "ACTION_004", "verb": "enter", "label": "A mãe entra na sala", "actor": "CHARACTER_002", "targets": ["ENVIRONMENT_001"], "beats": ["BEAT_04"], "essential": true, "confidence": 0.92},
+    {"key": "ACTION_005", "verb": "react", "label": "A mãe reage e briga com o menino", "actor": "CHARACTER_002", "targets": ["CHARACTER_001"], "beats": ["BEAT_05", "BEAT_06"], "essential": true, "confidence": 0.89}
+  ],
+  "relationships": [
+    {"subject": "CHARACTER_001", "predicate": "holds", "object": "OBJECT_001", "beats": ["BEAT_01"], "confidence": 0.95},
+    {"subject": "CHARACTER_001", "predicate": "in_front_of", "object": "TABLE_001", "beats": ["BEAT_01", "BEAT_02", "BEAT_03"], "confidence": 0.84},
+    {"subject": "CHARACTER_001", "predicate": "looks_at", "object": "OBJECT_001", "beats": ["BEAT_02", "BEAT_03"], "confidence": 0.8},
+    {"subject": "OBJECT_001", "predicate": "falls_onto", "object": "FLOOR_001", "beats": ["BEAT_02", "BEAT_03"], "confidence": 0.9},
+    {"subject": "CHARACTER_002", "predicate": "enters", "object": "ENVIRONMENT_001", "beats": ["BEAT_04"], "confidence": 0.92},
+    {"subject": "CHARACTER_002", "predicate": "looks_at", "object": "OBJECT_005", "beats": ["BEAT_05"], "confidence": 0.86},
+    {"subject": "CHARACTER_002", "predicate": "looks_at", "object": "CHARACTER_001", "beats": ["BEAT_06"], "confidence": 0.9},
+    {"subject": "OBJECT_002", "predicate": "on_top_of", "object": "SOFA_001", "beats": ["BEAT_01", "BEAT_04", "BEAT_05", "BEAT_06"], "confidence": 0.82},
+    {"subject": "PLANT_001", "predicate": "next_to", "object": "SOFA_001", "beats": "all", "confidence": 0.75},
+    {"subject": "OBJECT_004", "predicate": "behind", "object": "TABLE_001", "beats": ["BEAT_01", "BEAT_02", "BEAT_03"], "confidence": 0.6},
+    {"subject": "CHARACTER_001", "predicate": "wears", "object": "WARDROBE_001", "beats": "all", "confidence": 0.98}
+  ],
+  "scenes": [
+    {"key": "SCENE_001", "label": "Sala de estar — o acidente", "environment": "ENVIRONMENT_001", "summary": "Toda a ação acontece na sala de estar, durante o dia."}
+  ],
+  "camera": [
+    {"shotSize": "medium", "angle": "eye_level", "movement": "static", "movementIntensity": 0.05, "confidence": 0.82},
+    {"shotSize": "close_up", "angle": "high", "movement": "tilt", "movementIntensity": 0.35, "confidence": 0.74},
+    {"shotSize": "close_up", "angle": "high", "movement": "static", "movementIntensity": 0.1, "confidence": 0.78},
+    {"shotSize": "wide", "angle": "eye_level", "movement": "pan", "movementIntensity": 0.3, "confidence": 0.8},
+    {"shotSize": "medium_close_up", "angle": "eye_level", "movement": "static", "movementIntensity": 0.05, "confidence": 0.77},
+    {"shotSize": "medium", "angle": "eye_level", "movement": "handheld", "movementIntensity": 0.2, "confidence": 0.75}
+  ],
+  "lighting": {"source": "natural", "timeOfDay": "dia", "colorTemperature": "neutral", "mood": "claro e doméstico", "confidence": 0.8},
+  "audio": {
+    "language": "pt-BR",
+    "segments": [
+      {"kind": "ambience", "start": 0.0, "end": 1.0, "label": "Ambiente doméstico silencioso", "confidence": 0.7},
+      {"kind": "sfx", "start": 0.42, "end": 0.47, "label": "Vidro quebrando", "action": "ACTION_003", "confidence": 0.9},
+      {"kind": "sfx", "start": 0.53, "end": 0.58, "label": "Passos", "action": "ACTION_004", "confidence": 0.65},
+      {"kind": "speech", "start": 0.72, "end": 0.8, "label": "Fala da mãe", "transcript": "O que foi isso?!", "speaker": "CHARACTER_002", "confidence": 0.86},
+      {"kind": "speech", "start": 0.84, "end": 0.97, "label": "Fala da mãe", "transcript": "Quantas vezes eu já te disse para tomar cuidado?", "speaker": "CHARACTER_002", "confidence": 0.84}
+    ]
+  },
+  "texts": [
+    {"text": "Lar Doce Lar", "kind": "sign", "beats": ["BEAT_04", "BEAT_05", "BEAT_06"], "bbox": {"x": 0.12, "y": 0.12, "w": 0.16, "h": 0.06}, "confidence": 0.71}
+  ],
+  "detector": {
+    "relabel": {"OBJECT_001": {"label": "Taça", "confidence": 0.71}, "OBJECT_004": {"label": "Pufe", "confidence": 0.41}},
+    "missed": ["LIGHTING_001", "CEILING_001"]
+  }
+}

@@ -1,0 +1,17 @@
+# Self-contained so the project keeps the same lint rules if it moves to its own
+# repository. Mirrors the parent repository's ruff.toml and adds first-party
+# import sorting for the `videodna` package.
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[lint.isort]
+known-first-party = ["videodna"]
+
+[lint.per-file-ignores]
+"**/tests/**/*.py" = ["F401", "SIM118"]
+"apps/api/migrations/versions/*.py" = ["E501"]
+# SVG path data and inline styles are clearer on one line than wrapped.
+"apps/api/src/videodna/orchestrator/adapters/mock/imaging.py" = ["E501"]

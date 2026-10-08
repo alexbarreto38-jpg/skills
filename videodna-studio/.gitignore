@@ -1,0 +1,30 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# Python
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+*.py[cod]
+
+# Local runtime data (storage, temp work dirs, sqlite)
+var/
+*.sqlite3
+*.db
+
+# Env files with real values
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Coverage
+coverage/
+.coverage
+htmlcov/

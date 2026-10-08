@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.turbo
+**/.venv
+**/__pycache__
+**/var
+apps/api
+docs
+.env

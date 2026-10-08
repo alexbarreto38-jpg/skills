@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Native helpers that ship prebuilt binaries via postinstall.
+onlyBuiltDependencies:
+  - unrs-resolver

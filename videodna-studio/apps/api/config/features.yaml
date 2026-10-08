@@ -1,0 +1,24 @@
+# Feature flags (spec §59). Override with FEATURE_FLAGS="name=true,other=false".
+# Provider flags (provider.<name>) default to ON unless listed here.
+flags:
+  frame_previews:
+    default: true
+    description: Preview de frame (keyframe com a alteração aplicada) antes de gerar vídeo.
+  smart_mode:
+    default: false
+    description: "Modo Smart: a IA decide quais elementos adaptar a partir de uma instrução (MVP 4)."
+  auto_mode:
+    default: false
+    description: "Remodelar automaticamente: conjunto coerente de alterações sugerido pela IA (MVP 4)."
+  advanced_editing:
+    default: false
+    description: Edição avançada (adicionar elementos, instruções por shot).
+  experimental_analysis:
+    default: false
+    description: Segmentação já durante a análise (em vez de sob demanda na geração).
+  ai_consensus:
+    default: false
+    description: Validação multi-modelo para elementos essenciais com baixa confiança.
+  audio_regeneration:
+    default: false
+    description: Alterar efeitos sonoros quando a alteração visual exigir (recurso futuro).

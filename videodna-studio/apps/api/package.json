@@ -1,0 +1,14 @@
+{
+  "name": "@videodna/api",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Python backend wired into Turborepo; the real tooling is uv (see pyproject.toml).",
+  "scripts": {
+    "dev": "uv run uvicorn videodna.main:app --reload --host 0.0.0.0 --port 8000",
+    "worker": "uv run videodna worker",
+    "test": "uv run pytest",
+    "lint": "uvx ruff@0.14.13 check . && uvx ruff@0.14.13 format --check .",
+    "migrate": "uv run alembic upgrade head",
+    "openapi": "uv run videodna export-openapi ../../packages/api-client/openapi.json"
+  }
+}

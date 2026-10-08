@@ -1,0 +1,192 @@
+# Provider Registry (spec §55).
+#
+# Every AI capability the product uses is listed here; business code only asks the
+# router for a *capability*. Swapping a vendor = adding an adapter + an entry here.
+#
+# IMPORTANT
+# * Only mock and local providers are registered today. All costs below are
+#   FICTITIOUS values used to exercise the router and the cost ledger in
+#   AI_MOCK_MODE. They do not describe any real service.
+# * Before adding a real provider, read its official documentation and pricing
+#   page and copy limits/prices from there (see docs/providers.md). Never guess an
+#   endpoint, parameter, price or limit.
+#
+# Schema: see videodna/orchestrator/descriptor.py (ProviderDescriptor).
+
+providers:
+  # --- understanding ----------------------------------------------------------
+  - name: mock-multimodal
+    kind: video_analyzer
+    adapter: videodna.orchestrator.adapters.mock.analysis:MockVideoAnalyzer
+    description: Análise narrativa multimodal simulada (fixture "boy_glass").
+    mock: true
+    priority: 60
+    capabilities: [video.understanding]
+    quality: {default: 0.82}
+    cost: {unit: second, amount: "0.02", per_call: "0.05", currency: BRL}
+    latency: {base_sec: 0.2, per_unit_sec: 0.0}
+    models: [{id: mock-multimodal-v1, default: true}]
+    params: {story: boy_glass}
+
+  - name: mock-detector
+    kind: image_analyzer
+    adapter: videodna.orchestrator.adapters.mock.analysis:MockImageAnalyzer
+    description: Detector open-vocabulary + OCR simulados.
+    mock: true
+    capabilities: [object.detection, object.grounding, ocr]
+    quality: {default: 0.78}
+    cost: {unit: image, amount: "0.004", currency: BRL}
+    latency: {base_sec: 0.1, per_unit_sec: 0.02}
+    models: [{id: mock-detector-v1, default: true}]
+    params: {story: boy_glass}
+
+  - name: mock-segmenter
+    kind: segmentation
+    adapter: videodna.orchestrator.adapters.mock.vision:MockSegmentation
+    description: Segmentação por máscara (simulada a partir das caixas).
+    mock: true
+    capabilities: [segmentation.image, segmentation.video]
+    quality: {default: 0.75}
+    cost: {unit: image, amount: "0.01", currency: BRL}
+    models: [{id: mock-segmenter-v1, default: true}]
+
+  - name: mock-tracker
+    kind: tracking
+    adapter: videodna.orchestrator.adapters.mock.vision:MockTracking
+    description: Multi-object tracking por interpolação de detecções.
+    mock: true
+    capabilities: [tracking.multi_object]
+    quality: {default: 0.74}
+    cost: {unit: second, amount: "0.005", currency: BRL}
+    models: [{id: mock-tracker-v1, default: true}]
+
+  - name: mock-speech
+    kind: speech
+    adapter: videodna.orchestrator.adapters.mock.analysis:MockSpeech
+    description: Transcrição e classificação de áudio simuladas.
+    mock: true
+    capabilities: [speech.transcription]
+    quality: {default: 0.8}
+    cost: {unit: minute, amount: "0.03", currency: BRL}
+    models: [{id: mock-speech-v1, default: true}]
+    params: {story: boy_glass}
+
+  # --- suggestions & images ------------------------------------------------------
+  - name: mock-suggest
+    kind: suggestion
+    adapter: videodna.orchestrator.adapters.mock.suggestions:MockSuggestionProvider
+    description: Catálogo curado com regras de contexto.
+    mock: true
+    capabilities: [text.suggestions]
+    quality: {default: 0.7}
+    cost: {unit: call, amount: "0", per_call: "0.01", currency: BRL}
+    models: [{id: mock-suggest-v1, default: true}]
+
+  - name: mock-imagegen
+    kind: image_generator
+    adapter: videodna.orchestrator.adapters.mock.imaging:MockImageGenerator
+    description: Cards ilustrativos em SVG e preview de frame via FFmpeg.
+    mock: true
+    capabilities: [image.generate, image.edit]
+    quality: {default: 0.6}
+    cost: {unit: image, amount: "0.06", currency: BRL}
+    cost_by_capability:
+      image.generate: {unit: image, amount: "0", currency: BRL}
+    models: [{id: mock-imagegen-v1, default: true}]
+
+  # --- video editing / generation (light -> heavy) --------------------------------
+  - name: mock-edit-lite
+    kind: video_editor
+    adapter: videodna.orchestrator.adapters.mock.video:MockVideoEditor
+    description: Edição local econômica (cor/atributos e objetos simples).
+    mock: true
+    priority: 55
+    capabilities: [video.attribute_edit, video.localized_edit]
+    features: [mask_input, partial_range, chunking]
+    quality: {video.attribute_edit: 0.74, video.localized_edit: 0.6, default: 0.6}
+    cost: {unit: second, amount: "0.35", per_call: "0.10", currency: BRL}
+    limits: {max_duration_sec: 10, max_resolution_height: 1080}
+    latency: {base_sec: 4, per_unit_sec: 1.5}
+    prior_success_rate: 0.85
+    models: [{id: mock-edit-lite-v1, default: true}]
+    params: {max_edits_per_call: 3, credits_per_second: 1.0}
+
+  - name: mock-edit-pro
+    kind: video_editor
+    adapter: videodna.orchestrator.adapters.mock.video:MockVideoEditor
+    description: Edição localizada com máscara, tracking e referências.
+    mock: true
+    capabilities: [video.attribute_edit, video.localized_edit, video.background_replace]
+    features: [mask_input, partial_range, reference_images, motion_preservation, camera_preservation, chunking]
+    quality:
+      video.attribute_edit: 0.86
+      video.localized_edit: 0.84
+      video.background_replace: 0.78
+      default: 0.8
+    cost: {unit: second, amount: "0.90", per_call: "0.20", currency: BRL}
+    limits: {max_duration_sec: 20, max_resolution_height: 1080}
+    latency: {base_sec: 8, per_unit_sec: 3}
+    prior_success_rate: 0.9
+    models: [{id: mock-edit-pro-v2, default: true}]
+    params: {credits_per_second: 2.0}
+
+  - name: mock-v2v
+    kind: video_editor
+    adapter: videodna.orchestrator.adapters.mock.video:MockVideoEditor
+    description: Video-to-video (troca de cenário / reconstrução de shot preservando movimento).
+    mock: true
+    capabilities: [video.background_replace, video.shot_reconstruction]
+    features: [reference_images, motion_preservation, camera_preservation, chunking, partial_range]
+    quality: {video.background_replace: 0.88, video.shot_reconstruction: 0.85, default: 0.85}
+    cost:
+      unit: second
+      amount: "1.60"
+      per_call: "0.30"
+      currency: BRL
+      resolution_multipliers: {720: 1.0, 1080: 1.5}
+    limits: {max_duration_sec: 10, max_resolution_height: 1080}
+    latency: {base_sec: 20, per_unit_sec: 6}
+    prior_success_rate: 0.82
+    models: [{id: mock-v2v-v1, default: true}]
+    params: {credits_per_second: 4.0}
+
+  - name: mock-gen
+    kind: video_generator
+    adapter: videodna.orchestrator.adapters.mock.video:MockVideoGenerator
+    description: Geração completa de shot a partir de referências (mais caro, não preserva pose).
+    mock: true
+    capabilities: [video.full_generation, video.shot_reconstruction]
+    features: [reference_images, chunking]
+    quality: {video.full_generation: 0.9, video.shot_reconstruction: 0.8, default: 0.85}
+    cost:
+      unit: second
+      amount: "2.80"
+      per_call: "0.50"
+      currency: BRL
+      resolution_multipliers: {720: 1.0, 1080: 1.6}
+    limits: {max_duration_sec: 8, max_resolution_height: 1080}
+    latency: {base_sec: 40, per_unit_sec: 10}
+    prior_success_rate: 0.78
+    models: [{id: mock-gen-v1, default: true}]
+    params: {credits_per_second: 8.0}
+
+  # --- quality ----------------------------------------------------------------------
+  - name: mock-inspector
+    kind: qa
+    adapter: videodna.orchestrator.adapters.mock.qa:MockQAProvider
+    description: Inspetor de vídeo multimodal simulado (compara DNA esperado x resultado).
+    mock: true
+    capabilities: [qa.video_inspection]
+    quality: {default: 0.8}
+    cost: {unit: second, amount: "0.03", currency: BRL}
+    models: [{id: mock-inspector-v1, default: true}]
+
+  - name: ffmpeg-qa
+    kind: qa
+    adapter: videodna.orchestrator.adapters.local.ffmpeg_qa:TechnicalQAProvider
+    description: Verificações técnicas determinísticas (duração, resolução, quadros pretos).
+    local: true
+    capabilities: [qa.technical]
+    quality: {default: 1.0}
+    cost: {unit: call, amount: "0", currency: BRL}
+    prior_success_rate: 0.99

@@ -1,0 +1,18 @@
+{
+  "name": "videodna-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "VideoDNA Studio — AI video remodeling platform (monorepo root)",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "gen:api": "pnpm --dir apps/api run openapi && pnpm --filter @videodna/api-client generate"
+  },
+  "devDependencies": {
+    "turbo": "2.11.2"
+  }
+}
