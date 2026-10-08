@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # VideoDNA web (Next.js standalone). Build context: the monorepo root
 # (`videodna-studio/`), because the app depends on packages/api-client.
 # Behind a TLS-intercepting proxy: `--secret id=ca,src=/path/to/proxy-ca.pem`.

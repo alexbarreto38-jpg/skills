@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # VideoDNA backend image — used by both the `api` and the `worker` services.
 #
 # No apt-get: FFmpeg comes from a static-build image, and Python deps from the

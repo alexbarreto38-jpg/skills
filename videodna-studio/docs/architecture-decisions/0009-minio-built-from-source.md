@@ -1,6 +1,6 @@
 # 0009 — MinIO compilado do código-fonte para desenvolvimento
 
-- **Status:** Aceito
+- **Status:** Aceito — ajustado pelo [ADR-0013](0013-local-storage-default-stack.md): o MinIO saiu do stack padrão e sobe com `docker-compose.s3.yml`
 - **Data:** 2026-10-08
 
 ## Contexto

@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1.7
 # MinIO for local development, built from source.
 #
 # MinIO stopped publishing community container images, and its docs now point

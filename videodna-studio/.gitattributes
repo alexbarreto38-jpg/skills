@@ -1,0 +1,10 @@
+# Keep the working tree identical to what runs inside the Linux containers,
+# whatever core.autocrlf says on a Windows machine.
+* text=auto eol=lf
+# Windows PowerShell scripts are edited and run on Windows.
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.ico binary
+*.woff2 binary

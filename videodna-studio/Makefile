@@ -2,6 +2,7 @@
 #
 # Pré-requisitos locais: uv, pnpm (via corepack), node >= 22, ffmpeg/ffprobe.
 # Para o stack completo em containers basta Docker: `make up`.
+# No Windows (sem make): powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 
 API := apps/api
 UV := cd $(API) && uv run
@@ -9,7 +10,7 @@ UV := cd $(API) && uv run
 RUFF := uvx ruff@0.14.13
 
 .DEFAULT_GOAL := help
-.PHONY: help install infra up down logs migrate api worker web seed sample-video \
+.PHONY: help install infra infra-s3 up up-s3 down logs migrate api worker web seed sample-video \
 	test test-api test-web lint lint-api lint-web typecheck build openapi check fix
 
 ## help: lista os alvos
@@ -21,17 +22,28 @@ install:
 	cd $(API) && uv sync
 	pnpm install
 
-## infra: sobe só postgres, redis e minio (para rodar API/web fora de containers)
-infra:
-	docker compose up -d postgres redis minio
+COMPOSE_DEV := docker compose -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_S3 := docker compose -f docker-compose.yml -f docker-compose.s3.yml
 
-## up: sobe o stack completo (postgres, redis, minio, api, worker, web)
+## infra: sobe só postgres e redis, publicados no host (para rodar API/web fora de containers)
+infra:
+	$(COMPOSE_DEV) up -d postgres redis
+
+## infra-s3: como infra, mais o MinIO em :9000/:9001 (para STORAGE_BACKEND=s3)
+infra-s3:
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml -f docker-compose.s3.yml up -d postgres redis minio
+
+## up: sobe o stack completo (postgres, redis, api, worker, web) com storage local
 up:
 	docker compose up -d --build
 
+## up-s3: sobe o stack completo com storage S3 (MinIO compilado na primeira vez)
+up-s3:
+	$(COMPOSE_S3) up -d --build
+
 ## down: derruba o stack (os volumes são mantidos; use `docker compose down -v` para apagar)
 down:
-	docker compose down
+	$(COMPOSE_S3) down --remove-orphans
 
 ## logs: acompanha os logs da API e do worker
 logs:

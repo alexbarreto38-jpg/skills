@@ -1,0 +1,13 @@
+# Optional: publish Postgres and Redis on the host for running the API, worker
+# and web outside containers (README, "Setup local", option B):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+#
+# Not part of the default stack, so a database or Redis already installed on
+# the machine does not collide with ours.
+
+services:
+  postgres:
+    ports: ["5432:5432"]
+  redis:
+    ports: ["6379:6379"]

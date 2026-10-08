@@ -42,18 +42,54 @@ vídeo final mantendo áudio, duração e cortes.
 
 ## Início rápido
 
-Com Docker (nada mais precisa estar instalado):
+Só é preciso o [Docker Desktop](https://www.docker.com/products/docker-desktop/) aberto
+(no Windows ele usa o WSL2, que o próprio instalador configura). O código está na branch
+`claude/amazing-keller-uj680z` do repositório `alexbarreto38-jpg/skills`, na pasta
+`videodna-studio`.
+
+### Windows (PowerShell)
+
+```powershell
+cd $HOME
+git clone --branch claude/amazing-keller-uj680z --depth 1 https://github.com/alexbarreto38-jpg/skills.git videodna
+cd videodna\videodna-studio
+powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
+```
+
+Sem Git: baixe o ZIP da branch
+(`https://github.com/alexbarreto38-jpg/skills/archive/refs/heads/claude/amazing-keller-uj680z.zip`),
+extraia, abra o PowerShell na pasta `videodna-studio` e rode a última linha acima.
+
+O `iniciar.ps1` faz tudo sozinho e pode ser rodado de novo sem medo:
+
+1. confere o Docker Desktop (e o abre, se estiver fechado);
+2. baixa as imagens base **uma de cada vez, com novas tentativas** — redes instáveis
+   não derrubam a instalação;
+3. constrói as imagens do projeto (e as reconstrói sozinho depois de um `git pull`);
+4. sobe tudo, espera ficar pronto e abre http://localhost:3000.
+
+A primeira vez leva alguns minutos; as seguintes, segundos. Para parar:
+`powershell -ExecutionPolicy Bypass -File .\parar.ps1` (projetos e vídeos continuam
+guardados). Para atualizar: `git pull` e `.\iniciar.ps1` de novo.
+
+### Linux e macOS
 
 ```sh
 cd videodna-studio
 docker compose up -d --build
 ```
 
+### Endereços
+
 | Serviço        | URL                          | Observação                                  |
 |----------------|------------------------------|---------------------------------------------|
 | Studio (web)   | http://localhost:3000        | entra direto como usuário dev (autologin)   |
 | API + OpenAPI  | http://localhost:8000/docs   | Swagger gerado pelo FastAPI                 |
-| MinIO console  | http://localhost:9001        | `videodna` / `videodna-secret`              |
+
+O stack padrão guarda os vídeos em disco (um volume compartilhado entre API e worker) e
+não compila nada do código-fonte. O caminho S3 — upload direto do navegador para o bucket,
+igual ao de produção — sobe com o MinIO pelo arquivo adicional `docker-compose.s3.yml`
+(no Windows, `.\iniciar.ps1 -S3`); ver [Docker](#docker).
 
 Depois, no navegador: **Novo projeto → envie um vídeo → confirme os direitos → Enviar e
 analisar**. Sem um vídeo à mão, gere o vídeo sintético dos testes (12 s, 6 shots):
@@ -202,8 +238,8 @@ Em outro terminal: `pnpm --filter @videodna/web dev` e abra http://localhost:300
 ### Opção B — infraestrutura real em containers, código local
 
 ```sh
-make infra                         # postgres:5432, redis:6379, minio:9000/9001
-cp .env.example apps/api/.env      # ajuste STORAGE_BACKEND=s3 e as S3_* se quiser MinIO
+make infra                         # postgres:5432 e redis:6379 publicados no host
+cp .env.example apps/api/.env      # STORAGE_BACKEND=local por padrão
 make migrate
 make api                           # terminal 1
 make worker                        # terminal 2 (QUEUE_BACKEND=dramatiq)
@@ -211,19 +247,34 @@ make web                           # terminal 3
 ```
 
 `make help` lista todos os atalhos (`seed`, `test`, `lint`, `typecheck`, `openapi`, `check`…).
+`make infra-s3` sobe também o MinIO (portas 9000/9001) para testar `STORAGE_BACKEND=s3`.
+No Windows não há `make`: rode os comandos equivalentes que estão no `Makefile`.
 
 ## Docker
 
-`docker compose up -d --build` sobe:
+`docker compose up -d --build` (ou `.\iniciar.ps1` no Windows) sobe:
 
 | Serviço    | Imagem                                    | Função |
 |------------|-------------------------------------------|--------|
-| `postgres` | `postgres:16-alpine`                      | banco |
-| `redis`    | `redis:7-alpine`                          | broker da fila |
-| `minio`    | `videodna/minio:local` (build local)      | storage S3-compatível, CORS liberado para o web |
+| `postgres` | `postgres:16-alpine`                      | banco (só na rede interna) |
+| `redis`    | `redis:7-alpine`                          | broker da fila (só na rede interna) |
 | `api`      | `videodna/api:local`                      | aplica migrations e sobe o uvicorn; healthcheck em `/healthz` |
 | `worker`   | `videodna/api:local`                      | `videodna worker` (Dramatiq) — mesma imagem da API |
 | `web`      | `videodna/web:local`                      | Next.js standalone |
+
+Os vídeos ficam no volume `storage`, compartilhado entre API e worker; só as portas 3000
+e 8000 são publicadas no host, para não colidir com um Postgres ou Redis já instalados.
+
+Arquivos adicionais, combinados com `-f`:
+
+| Arquivo | Para quê |
+|---------|----------|
+| `docker-compose.s3.yml` | storage S3 via MinIO (`STORAGE_BACKEND=s3`, upload direto do navegador para o bucket); console em http://localhost:9001 (`videodna` / `videodna-secret`) |
+| `docker-compose.dev.yml` | publica Postgres (5432) e Redis (6379) no host, para rodar API/worker/web fora dos containers |
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.s3.yml up -d --build
+```
 
 Pontos que valem saber:
 
@@ -231,15 +282,23 @@ Pontos que valem saber:
   (`mwader/static-ffmpeg`), as dependências Python do `uv.lock`, as do Node do
   `pnpm-lock.yaml`. Os builds são reprodutíveis e não dependem de espelhos do Debian.
 - **MinIO é compilado do código-fonte** (`infra/minio/Dockerfile`), numa versão fixada, e
-  roda sobre distroless. O MinIO deixou de publicar imagens de container para a comunidade;
-  em produção use AWS S3 ou Cloudflare R2 (só muda `S3_*`). Ver
+  roda sobre distroless — por isso fica fora do stack padrão: compilar exige baixar os
+  módulos Go e alguns minutos de CPU. O MinIO deixou de publicar imagens de container para a
+  comunidade; em produção use AWS S3 ou Cloudflare R2 (só muda `S3_*`). Ver
   [ADR-0009](docs/architecture-decisions/0009-minio-built-from-source.md).
 - **Proxy com interceptação TLS:** os Dockerfiles aceitam um *build secret* opcional `ca`.
   Aponte `EXTRA_CA_CERT` para o certificado do proxy antes do build:
   ```sh
   EXTRA_CA_CERT=/caminho/proxy-ca.pem docker compose build
   ```
+  No PowerShell: `$env:EXTRA_CA_CERT = "C:\caminho\proxy-ca.pem"` antes do `iniciar.ps1`.
   Sem a variável, um arquivo vazio (`infra/no-extra-ca.pem`) é usado e nada muda.
+- **Rede instável no primeiro build** (`DeadlineExceeded`, `TLS handshake timeout`,
+  `i/o timeout` ao falar com `registry-1.docker.io`): o `docker compose` resolve as imagens
+  base de todos os serviços ao mesmo tempo e desiste rápido. O `iniciar.ps1` baixa uma de
+  cada vez com novas tentativas; fora do Windows, `docker pull` de cada imagem base antes do
+  build tem o mesmo efeito. Reiniciar o Docker Desktop e desligar VPN resolve a maioria dos
+  casos de DNS.
 - **URLs assinadas e o host:** dentro do compose o MinIO é `minio:9000`, mas o navegador
   precisa de `localhost:9000` — por isso existem `S3_ENDPOINT_URL` (servidor) e
   `S3_PUBLIC_ENDPOINT_URL` (o que vai nas URLs assinadas).

@@ -14,9 +14,10 @@ alternativas descartadas e o preço que se paga. Uma decisão revista ganha um A
 | [0006](0006-plan-before-generate.md) | Nada caro sem plano congelado e confirmado | Aceito |
 | [0007](0007-jobs-in-database-dramatiq-sse.md) | Jobs no banco, Dramatiq + Redis, progresso por SSE | Aceito |
 | [0008](0008-mock-mode-first-class.md) | Mock mode como modo de produto completo | Aceito |
-| [0009](0009-minio-built-from-source.md) | MinIO compilado do código-fonte para desenvolvimento | Aceito |
+| [0009](0009-minio-built-from-source.md) | MinIO compilado do código-fonte para desenvolvimento | Aceito (ajustado pelo 0013) |
 | [0010](0010-storage-abstraction-signed-urls.md) | Storage abstrato, upload direto com URLs assinadas | Aceito |
 | [0011](0011-openapi-generated-client.md) | Client TypeScript gerado do OpenAPI | Aceito |
 | [0012](0012-local-first-analysis.md) | Análise em camadas: local primeiro, IA só no necessário | Aceito |
+| [0013](0013-local-storage-default-stack.md) | Stack padrão com storage local; MinIO opcional | Aceito |
 
 Modelo: [template.md](template.md).
