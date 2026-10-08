@@ -108,7 +108,10 @@ class ProviderRegistry:
             return self._descriptors[name]
         except KeyError as exc:
             raise AppError(
-                ErrorCode.NO_PROVIDER_AVAILABLE, f"Provider {name} desconhecido"
+                ErrorCode.NO_PROVIDER_AVAILABLE,
+                "Um serviço de IA necessário não está configurado. "
+                "Peça a quem instalou o VideoDNA Studio para revisar a configuração.",
+                details={"provider": name},
             ) from exc
 
     def candidates(

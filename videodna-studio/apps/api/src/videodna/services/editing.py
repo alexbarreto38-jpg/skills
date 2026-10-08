@@ -30,8 +30,11 @@ from videodna.domain.operations import (
 )
 from videodna.domain.video_dna import VideoDNA
 from videodna.errors import ELEMENT_GONE, SUGGESTION_GONE, AppError, ErrorCode, NotFound
+from videodna.logging_setup import get_logger
 from videodna.services.analysis.persistence import dna_from_json
 from videodna.services.projects import settings_of
+
+log = get_logger(__name__)
 
 
 def require_analysis(db: Session, project: m.Project) -> m.VideoAnalysis:
@@ -154,7 +157,8 @@ def build_spec(
     try:
         validate_operation(current, spec)
     except OperationError as exc:
-        raise AppError(ErrorCode.VALIDATION_ERROR, str(exc)) from exc
+        log.info("edit rejected", extra={"op": spec.op.value, "detail": str(exc)})
+        raise AppError(ErrorCode.VALIDATION_ERROR, exc.user_message) from exc
     spec.previous_value = _previous_value(current, spec)
     spec = pin_added_entity_key(current, spec)
     return analysis, original, current, ops, spec

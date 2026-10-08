@@ -31,7 +31,7 @@ from videodna.domain.enums import (
 from videodna.domain.impact import ChangeKind, Dependency, ImpactReport, analyze_operation
 from videodna.domain.operations import OperationSpec, apply_operations, is_generative
 from videodna.domain.video_dna import VideoDNA
-from videodna.errors import AppError
+from videodna.errors import USER_MESSAGES, AppError, ErrorCode
 from videodna.media.hashing import sha256_text
 from videodna.media.transcode import target_height
 from videodna.orchestrator.capabilities import (
@@ -56,6 +56,7 @@ from videodna.services.generation.plan_models import (
     ShotPlan,
 )
 from videodna.services.projects import settings_of
+from videodna.wording import STRATEGY_LABEL, money, scene
 
 STRATEGY_CAPABILITY: dict[Strategy, Capability] = {
     Strategy.ATTRIBUTE_EDIT: Capability.VIDEO_ATTRIBUTE_EDIT,
@@ -164,12 +165,12 @@ def _edit_description(
     before = original.entity(op.entity_id) if op.entity_id else None
     after = current.entity(op.entity_id) if op.entity_id else None
     if op.op.value == "REMOVE":
-        text = f"Remover {before.label if before else op.entity_id}"
+        text = f"Remover {before.label if before else 'elemento'}"
     elif op.op.value == "ADD_ENTITY":
         label = op.new_value.get("label") if isinstance(op.new_value, dict) else "elemento"
         text = f"Adicionar {label}" + (f" em {before.label}" if before else "")
     elif op.op.value == "INSTRUCTION":
-        text = f"Instrução: {op.instruction}"
+        text = f"Pedido: {op.instruction}"
     elif before and after:
         text = (
             f"{before.label} → {after.label}"
@@ -179,11 +180,15 @@ def _edit_description(
         if op.instruction:
             text += f" ({op.instruction})"
     else:
-        text = op.instruction or op.op.value
+        text = op.instruction or "Mudança no vídeo"
     return PlannedEdit(
         operation_id=op.id,
         entity_key=op.entity_id,
-        entity_label=(after or before).label if (after or before) else (op.entity_id or "projeto"),
+        entity_label=(
+            (after or before).label
+            if (after or before)
+            else ("Elemento" if op.entity_id else "Vídeo inteiro")
+        ),
         change_kind=kind.value,
         description=text,
     )
@@ -265,7 +270,7 @@ def build_plan(
                 id=f"REFPACK_{char_key}",
                 kind="character",
                 entity_key=char_key,
-                label=f"Character Reference Pack — {entity.label}",
+                label=f"Referência do personagem: {entity.label}",
                 description=f"{entity.label}: {children}",
                 shot_keys=sorted(shots),
                 images=2,
@@ -281,7 +286,7 @@ def build_plan(
                 id=f"REFPACK_{environment.id}",
                 kind="scene",
                 entity_key=environment.id,
-                label=f"Scene Reference Pack — {environment.label}",
+                label=f"Referência do cenário: {environment.label}",
                 description=f"{environment.label}: {parts}",
                 shot_keys=sorted(
                     {
@@ -347,7 +352,7 @@ def build_plan(
                 needs_refs,
                 len(step_impacts),
                 warnings,
-                shot.id,
+                scene(shot.id, shot.index),
             )
             if decision is None:
                 continue
@@ -368,7 +373,7 @@ def build_plan(
             )
             cost_lines.append(
                 CostLine(
-                    label=f"{shot.id} · {strategy.value}",
+                    label=f"{scene(shot.id, shot.index)} · {STRATEGY_LABEL[strategy]}",
                     provider=decision.provider,
                     amount=float(decision.estimated_cost),
                 )
@@ -406,7 +411,7 @@ def build_plan(
                     if seg.estimated_cost:
                         cost_lines.append(
                             CostLine(
-                                label=f"{shot.id} · máscaras",
+                                label=f"{scene(shot.id, shot.index)} · recorte do elemento",
                                 provider=seg.provider,
                                 amount=float(seg.estimated_cost),
                             )
@@ -416,8 +421,9 @@ def build_plan(
                         PlanWarning(
                             code="NO_SEGMENTATION",
                             message=(
-                                f"Sem provider de segmentação para {shot.id}; "
-                                "a edição usará apenas o tracking."
+                                f"{scene(shot.id, shot.index)}: a IA não vai recortar o "
+                                "contorno exato do elemento; a mudança pode ficar menos "
+                                "precisa nas bordas."
                             ),
                         )
                     )
@@ -430,18 +436,23 @@ def build_plan(
             if qa.estimated_cost:
                 cost_lines.append(
                     CostLine(
-                        label=f"{shot.id} · QA",
+                        label=f"{scene(shot.id, shot.index)} · conferência de qualidade",
                         provider=qa.provider,
                         amount=float(qa.estimated_cost),
                     )
                 )
         except AppError:
-            warnings.append(
-                PlanWarning(
-                    code="NO_AI_QA",
-                    message="Sem inspetor de IA disponível; apenas QA técnico será executado.",
+            # Once per plan, not once per scene: the same note six times is noise.
+            if not any(w.code == "NO_AI_QA" for w in warnings):
+                warnings.append(
+                    PlanWarning(
+                        code="NO_AI_QA",
+                        message=(
+                            "A conferência automática por IA não está disponível; faremos "
+                            "só a checagem técnica. Assista ao resultado com atenção."
+                        ),
+                    )
                 )
-            )
 
         plan.estimated_cost = round(
             sum(s.estimated_cost for s in plan.steps)
@@ -467,7 +478,7 @@ def build_plan(
         warnings.append(
             PlanWarning(
                 code="NOTHING_TO_GENERATE",
-                message="Nenhuma alteração visual para gerar.",
+                message=USER_MESSAGES[ErrorCode.NOTHING_TO_GENERATE],
                 blocking=True,
             )
         )
@@ -475,7 +486,10 @@ def build_plan(
         warnings.append(
             PlanWarning(
                 code="NO_SHOTS_AFFECTED",
-                message="As alterações não afetam nenhum shot visível.",
+                message=(
+                    "O elemento que você mudou não aparece em nenhuma cena do vídeo. "
+                    "Escolha outro elemento no editor."
+                ),
                 blocking=True,
             )
         )
@@ -486,7 +500,19 @@ def build_plan(
             PlanWarning(
                 code="AUDIO_LOCKED",
                 message=(
-                    "LOCK AUDIO ativo: o áudio original será mantido, inclusive efeitos sonoros."
+                    "O som original será mantido, incluindo os efeitos sonoros "
+                    "(“Manter o som” está ligado)."
+                ),
+            )
+        )
+    if not locks.audio and original.technical.has_audio and generated:
+        # The generated video carries no sound when the original audio is not kept.
+        warnings.append(
+            PlanWarning(
+                code="AUDIO_OFF",
+                message=(
+                    "“Manter o som” está desligado: o vídeo gerado vai ficar sem som. "
+                    "Ligue essa opção em Opções avançadas se quiser o áudio original."
                 ),
             )
         )
@@ -494,7 +520,10 @@ def build_plan(
         warnings.append(
             PlanWarning(
                 code="TIMING_LOCKED",
-                message="LOCK TIMING ativo: duração e ritmo de cada shot serão preservados.",
+                message=(
+                    "Cada cena vai durar exatamente o mesmo que no original "
+                    "(“Manter o tempo” está ligado)."
+                ),
             )
         )
 
@@ -571,7 +600,7 @@ def _route_step(
     needs_refs: bool,
     edit_count: int,
     warnings: list[PlanWarning],
-    shot_key: str,
+    scene_name: str,
 ) -> tuple[RoutingDecision | None, Strategy]:
     """Route a step; escalate one level when no provider supports the lighter
     strategy (e.g. too many edits for the economic editor)."""
@@ -597,21 +626,35 @@ def _route_step(
             warnings.append(
                 PlanWarning(
                     code="STRATEGY_ESCALATED",
-                    message=(
-                        f"{shot_key}: nenhum provider para {strategy.value}; "
-                        f"usando {candidate.value}."
-                    ),
+                    message=_escalation_message(scene_name, candidate),
                 )
             )
         return decision, candidate
     warnings.append(
         PlanWarning(
             code="NO_PROVIDER",
-            message=f"{shot_key}: nenhum provider disponível para {strategy.value}.",
+            message=(
+                f"{scene_name}: nenhum serviço de IA consegue fazer esta mudança agora. "
+                "Desfaça a mudança no editor ou tente mais tarde."
+            ),
             blocking=True,
         )
     )
     return None, strategy
+
+
+def _escalation_message(scene_name: str, used: Strategy) -> str:
+    if used == Strategy.SHOT_RECONSTRUCTION:
+        return (
+            f"{scene_name}: nenhuma IA disponível consegue mudar só uma parte da imagem, "
+            "então a cena inteira será refeita (custa mais)."
+        )
+    if used == Strategy.FULL_REGENERATION:
+        return (
+            f"{scene_name}: nenhuma IA disponível consegue refazer a cena mantendo o "
+            "original, então ela será criada do zero (custa mais e pode mudar mais coisas)."
+        )
+    return f"{scene_name}: a forma mais simples não está disponível; usaremos uma mais completa."
 
 
 def _budget_warning(
@@ -625,12 +668,16 @@ def _budget_warning(
         )
     ) or Decimal(0)
     if Decimal(spent) + estimate > user.budget_limit:
+        cur = runtime.settings.cost_currency
+        # In demo mode every amount is made up; say so next to the numbers.
+        simulated = " (valores simulados)" if runtime.settings.ai_mock_mode else ""
         return PlanWarning(
             code="INSUFFICIENT_CREDITS",
             message=(
-                f"Orçamento insuficiente: gasto {float(spent):.2f} + "
-                f"estimativa {float(estimate):.2f} "
-                f"> limite {float(user.budget_limit):.2f} {runtime.settings.cost_currency}."
+                f"Esta geração passa do seu limite de gastos: já foram usados {money(spent, cur)} "
+                f"e esta custa {money(estimate, cur)}, mas o limite é "
+                f"{money(user.budget_limit, cur)}{simulated}. Escolha a qualidade “Econômico”, "
+                "gere uma prévia ou faça menos mudanças."
             ),
             blocking=True,
         )

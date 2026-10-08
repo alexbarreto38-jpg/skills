@@ -101,9 +101,7 @@ USER_MESSAGES: dict[ErrorCode, str] = {
         "Atualize a página (F5) e tente de novo."
     ),
     ErrorCode.UNAUTHORIZED: "Sua sessão terminou. Entre de novo para continuar.",
-    ErrorCode.FORBIDDEN: (
-        "Sua conta não tem acesso a esta parte. Volte para a lista de projetos."
-    ),
+    ErrorCode.FORBIDDEN: ("Sua conta não tem acesso a esta parte. Volte para a lista de projetos."),
     ErrorCode.RATE_LIMITED: (
         "Foram muitos pedidos em pouco tempo. Espere cerca de 1 minuto e tente de novo."
     ),
@@ -125,9 +123,7 @@ USER_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.VIDEO_TOO_LONG: (
         "O vídeo passa da duração máxima. Corte um trecho menor e envie de novo."
     ),
-    ErrorCode.UPLOAD_INCOMPLETE: (
-        "O vídeo não chegou inteiro. Escolha o arquivo e envie de novo."
-    ),
+    ErrorCode.UPLOAD_INCOMPLETE: ("O vídeo não chegou inteiro. Escolha o arquivo e envie de novo."),
     ErrorCode.MEDIA_PROCESSING_FAILED: (
         "Não conseguimos preparar este vídeo. "
         "Tente de novo; se repetir, salve o vídeo em MP4 e envie outra vez."
@@ -184,8 +180,7 @@ USER_MESSAGES: dict[ErrorCode, str] = {
         "O serviço de IA teve um problema. Tente de novo; se repetir, escolha outra qualidade."
     ),
     ErrorCode.NO_PROVIDER_AVAILABLE: (
-        "Nenhum serviço de IA consegue fazer isso agora. "
-        "Tente mais tarde ou desfaça esta mudança."
+        "Nenhum serviço de IA consegue fazer isso agora. Tente mais tarde ou desfaça esta mudança."
     ),
     ErrorCode.GENERATION_FAILED: (
         "Não conseguimos gerar o vídeo. Suas mudanças continuam salvas: "
@@ -240,16 +235,12 @@ PROJECT_GONE = (
     "Não encontramos este projeto; talvez tenha sido excluído. Volte para a lista de projetos."
 )
 ELEMENT_GONE = (
-    "Este elemento não existe mais (talvez uma mudança o tenha removido). "
-    "Atualize a página (F5)."
+    "Este elemento não existe mais (talvez uma mudança o tenha removido). Atualize a página (F5)."
 )
 SUGGESTION_GONE = "Esta opção não está mais disponível. Escolha outra na lista."
 PLAN_GONE = (
-    "Este plano de geração não existe mais. "
-    "Volte ao editor e clique em “Revisar e gerar” de novo."
+    "Este plano de geração não existe mais. Volte ao editor e clique em “Revisar e gerar” de novo."
 )
 JOB_GONE = "Não encontramos este processamento. Volte ao projeto para ver como ele está."
-UPLOAD_GONE = (
-    "Este envio expirou ou foi cancelado. Escolha o arquivo e envie de novo."
-)
+UPLOAD_GONE = "Este envio expirou ou foi cancelado. Escolha o arquivo e envie de novo."
 FILE_GONE = "Este arquivo não existe mais. Atualize a página (F5)."

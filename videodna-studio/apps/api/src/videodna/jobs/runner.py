@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from videodna.db import models as m
 from videodna.domain.enums import JobKind, JobStatus
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import USER_MESSAGES, AppError, ErrorCode
 from videodna.jobs.service import (
     HEARTBEAT_EVERY,
     JobCancelled,
@@ -138,7 +138,7 @@ def run_job(job_id: uuid.UUID, runtime: Runtime | None = None) -> None:
             ctx.reporter.finish(JobStatus.COMPLETED, message=message, result=result)
             log.info("job completed")
         except JobCancelled:
-            ctx.reporter.finish(JobStatus.CANCELLED, message="Cancelado pelo usuário")
+            ctx.reporter.finish(JobStatus.CANCELLED, message="Cancelado por você")
             log.info("job cancelled")
         except AppError as exc:
             log.warning(
@@ -149,7 +149,7 @@ def run_job(job_id: uuid.UUID, runtime: Runtime | None = None) -> None:
             log.exception("job crashed")
             ctx.reporter.finish(
                 JobStatus.FAILED,
-                message="Erro interno durante o processamento.",
+                message=USER_MESSAGES[ErrorCode.INTERNAL_ERROR],
                 error_code=ErrorCode.INTERNAL_ERROR,
             )
         finally:

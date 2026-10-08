@@ -194,8 +194,8 @@ class AIProviderRouter:
         if failed.estimated_cost > 0 and decision.estimated_cost > ceiling:
             raise AppError(
                 ErrorCode.NO_PROVIDER_AVAILABLE,
-                "O provider alternativo custaria bem mais do que o estimado; "
-                "a geração foi interrompida para sua aprovação.",
+                "O serviço de IA falhou e o substituto custaria bem mais do que o estimado. "
+                "Paramos para não gastar sem você saber: abra “Revisar e gerar” e gere de novo.",
                 details={
                     "failedProvider": failed.provider,
                     "fallbackProvider": decision.provider,

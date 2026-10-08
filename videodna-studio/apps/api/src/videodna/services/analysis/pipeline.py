@@ -62,6 +62,7 @@ from videodna.orchestrator.router import RoutingTask
 from videodna.services.analysis.assembler import AssemblyInput, assemble_dna
 from videodna.services.analysis.persistence import dna_from_json, persist_dna
 from videodna.storage.base import analysis_key, source_asset_key
+from videodna.wording import count, scene
 
 log = get_logger(__name__)
 
@@ -77,7 +78,10 @@ def _load_source(ctx: JobContext) -> m.SourceVideo:
             query = query.where(m.SourceVideo.id == uuid.UUID(source_id))
         source = session.scalars(query.order_by(m.SourceVideo.created_at.desc())).first()
         if source is None:
-            raise AppError(ErrorCode.UPLOAD_INCOMPLETE, "Nenhum vídeo enviado para este projeto.")
+            raise AppError(
+                ErrorCode.UPLOAD_INCOMPLETE,
+                "Este projeto ainda não tem vídeo. Envie um vídeo para começar a análise.",
+            )
         session.expunge(source)
         return source
 
@@ -95,17 +99,23 @@ def ensure_ingested(
         SourceVideoStatus.INGESTING,
         SourceVideoStatus.READY,
     }:
+        if source.status == SourceVideoStatus.REJECTED:
+            raise AppError(
+                ErrorCode.UPLOAD_INCOMPLETE,
+                "Este vídeo foi recusado na análise anterior. "
+                "Clique em “Enviar outro vídeo” e escolha outro arquivo.",
+            )
         raise AppError(ErrorCode.UPLOAD_INCOMPLETE)
     span = progress_to - progress_from
 
     if source.status == SourceVideoStatus.READY and source.proxy_key and source.technical:
-        ctx.reporter.progress("ingest", progress_to, "Vídeo já processado — reutilizando proxy")
+        ctx.reporter.progress(
+            "ingest", progress_to, "Este vídeo já foi preparado antes; aproveitando"
+        )
         proxy = storage.download(source.proxy_key, ctx.workdir / "proxy.mp4")
         return source, proxy, TechnicalMetadata.model_validate(source.technical)
 
-    ctx.reporter.progress(
-        "ingest", progress_from, "Baixando vídeo para processamento", status=JobStatus.PREPARING
-    )
+    ctx.reporter.progress("ingest", progress_from, "Abrindo o vídeo", status=JobStatus.PREPARING)
     with ctx.session() as session:
         row = session.get(m.SourceVideo, source.id)
         row.status = SourceVideoStatus.INGESTING
@@ -116,7 +126,7 @@ def ensure_ingested(
     )
     try:
         ctx.reporter.progress(
-            "probe", progress_from + span * 0.15, "Lendo metadados técnicos (FFprobe)"
+            "probe", progress_from + span * 0.15, "Conferindo formato, duração e tamanho"
         )
         technical = probe(local)
         validate_technical(technical, settings)
@@ -132,14 +142,16 @@ def ensure_ingested(
             session.commit()
         raise
 
-    ctx.reporter.progress("hash", progress_from + span * 0.3, "Calculando hash do arquivo")
+    ctx.reporter.progress(
+        "hash", progress_from + span * 0.3, "Conferindo se este vídeo já foi analisado antes"
+    )
     content_hash = sha256_file(local)
     technical = technical.model_copy(update={"size_bytes": local.stat().st_size})
 
     ctx.reporter.progress(
         "proxy",
         progress_from + span * 0.45,
-        f"Gerando proxy {settings.proxy_height}p para o editor",
+        "Criando uma cópia leve do vídeo para o editor",
     )
     proxy = transcode.make_proxy(local, ctx.workdir / "proxy.mp4", height=settings.proxy_height)
     poster = transcode.make_poster(
@@ -170,7 +182,7 @@ def ensure_ingested(
         session.refresh(row)
         session.expunge(row)
         source = row
-    ctx.reporter.progress("ingest", progress_to, "Vídeo validado")
+    ctx.reporter.progress("ingest", progress_to, "Vídeo conferido")
     # The proxy is what every later stage reads; the original is only needed for
     # the final render, so drop it from the workdir right away.
     local.unlink(missing_ok=True)
@@ -182,7 +194,7 @@ def run_ingest_job(ctx: JobContext) -> dict[str, Any]:
     return {
         "sourceVideoId": str(source.id),
         "durationSec": technical.duration_sec,
-        "_message": "Vídeo validado e pronto para análise",
+        "_message": "Vídeo conferido e pronto para a análise",
     }
 
 
@@ -194,7 +206,9 @@ def _local_shots(
 ) -> list[Shot]:
     settings = ctx.runtime.settings
     storage = ctx.runtime.storage
-    ctx.reporter.progress("shots", 18, "Detectando cortes e shots", status=JobStatus.ANALYZING)
+    ctx.reporter.progress(
+        "shots", 18, "Encontrando os cortes entre as cenas", status=JobStatus.ANALYZING
+    )
     boundaries = detect_shots(
         proxy,
         technical.duration_sec,
@@ -209,7 +223,10 @@ def _local_shots(
         max_total=settings.analysis_max_keyframes,
     )
     ctx.reporter.progress(
-        "keyframes", 24, f"{len(boundaries)} shots detectados — extraindo {len(picks)} keyframes"
+        "keyframes",
+        24,
+        f"{count(len(boundaries), 'cena encontrada', 'cenas encontradas')}; separando "
+        f"{count(len(picks), 'foto', 'fotos')} para a IA olhar",
     )
     keyframes_by_shot: dict[int, list[Keyframe]] = {}
     measurements: dict[int, list[tuple[list[str], float]]] = {}
@@ -231,7 +248,7 @@ def _local_shots(
         measurements.setdefault(pick.shot_index, []).append(colors.measure(local))
         if i % 10 == 0:
             ctx.reporter.progress(
-                "keyframes", 24 + 6 * i / len(picks), f"Keyframes {i}/{len(picks)}"
+                "keyframes", 24 + 6 * i / len(picks), f"Fotos {i} de {len(picks)}"
             )
 
     shots: list[Shot] = []
@@ -364,13 +381,13 @@ def run_analysis_job(ctx: JobContext) -> dict[str, Any]:
 
         if reusable is not None:
             ctx.reporter.progress(
-                "reuse", 80, "Conteúdo idêntico já analisado — reutilizando análise (custo zero)"
+                "reuse", 80, "Este vídeo já foi analisado antes; reaproveitando, sem custo"
             )
             dna = _reuse_dna(dna_from_json(reusable.dna), shots, source, reusable.id)
         else:
             dna = _run_ai_stages(ctx, source, proxy, technical, shots)
 
-        ctx.reporter.progress("persist", 96, "Salvando Video DNA")
+        ctx.reporter.progress("persist", 96, "Salvando o mapa do vídeo")
         with ctx.session() as session:
             analysis = session.get(m.VideoAnalysis, analysis_id)
             if reusable is not None:
@@ -421,7 +438,7 @@ def _run_ai_stages(
     usage = ctx.usage()
 
     # Narrative / multimodal understanding
-    ctx.reporter.progress("narrative", 32, "Entendendo a história, personagens e ações")
+    ctx.reporter.progress("narrative", 32, "Entendendo a história, os personagens e as ações")
     task = RoutingTask(
         capability=Capability.VIDEO_UNDERSTANDING, duration_sec=technical.duration_sec
     )
@@ -439,7 +456,9 @@ def _run_ai_stages(
 
     # Detection + OCR on keyframes only
     ctx.reporter.progress(
-        "detection", 50, f"Detectando objetos e textos em {len(keyframes)} keyframes"
+        "detection",
+        50,
+        f"Reconhecendo objetos e textos em {count(len(keyframes), 'foto', 'fotos')}",
     )
     detections: ImageAnalysisResult | None = None
     detector_name: str | None = None
@@ -461,12 +480,14 @@ def _run_ai_stages(
         runs.append(_run("detection", det))
     except AppError as exc:
         ctx.reporter.log(
-            f"Detecção indisponível ({exc.code.value}); seguindo só com a análise multimodal",
+            "O reconhecimento de objetos falhou; seguimos com a análise geral "
+            "(pode ficar menos preciso).",
             level="warning",
+            data={"errorCode": exc.code.value},
         )
 
     # Tracking per shot, seeded by detections (fallback: the analyzer's boxes)
-    ctx.reporter.progress("tracking", 62, "Rastreando personagens e objetos entre frames")
+    ctx.reporter.progress("tracking", 62, "Seguindo pessoas e objetos ao longo do vídeo")
     tracks: list[TrackResult] = []
     tracker_name: str | None = None
     for i, shot in enumerate(shots):
@@ -485,20 +506,27 @@ def _run_ai_stages(
                 context=ctx.usage(shot.id),
             )
         except AppError as exc:
-            ctx.reporter.log(f"Tracking falhou no {shot.id} ({exc.code.value})", level="warning")
+            ctx.reporter.log(
+                f"Não conseguimos seguir os elementos na {scene(shot.id, shot.index).lower()}; "
+                "ela terá menos detalhes.",
+                level="warning",
+                data={"shotKey": shot.id, "errorCode": exc.code.value},
+            )
             continue
         tracks.extend(tr.result.tracks)
         tracker_name = tr.decision.provider
         if i == 0:
             runs.append(_run("tracking", tr))
         ctx.reporter.progress(
-            "tracking", 62 + 12 * (i + 1) / len(shots), f"Rastreando shot {i + 1}/{len(shots)}"
+            "tracking",
+            62 + 12 * (i + 1) / len(shots),
+            f"Seguindo elementos: cena {i + 1} de {len(shots)}",
         )
 
     # Audio
     speech: SpeechResult | None = None
     if technical.has_audio:
-        ctx.reporter.progress("audio", 76, "Analisando fala, música e efeitos sonoros")
+        ctx.reporter.progress("audio", 76, "Ouvindo falas, música e efeitos sonoros")
         audio_path = transcode.extract_audio(proxy, ctx.workdir / "audio.wav")
         if audio_path is not None:
             try:
@@ -517,11 +545,13 @@ def _run_ai_stages(
                 runs.append(_run("speech", sp))
             except AppError as exc:
                 ctx.reporter.log(
-                    f"Análise de áudio indisponível ({exc.code.value})", level="warning"
+                    "Não conseguimos analisar o som; o resto continua normalmente.",
+                    level="warning",
+                    data={"errorCode": exc.code.value},
                 )
 
     ctx.reporter.progress(
-        "assembly", 88, "Montando o Video DNA e verificando consenso entre modelos"
+        "assembly", 88, "Juntando tudo no mapa do vídeo e conferindo as respostas da IA"
     )
     return assemble_dna(
         AssemblyInput(

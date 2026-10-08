@@ -32,7 +32,7 @@ def create_preview_job(
         idempotency_key=f"preview:{suggestion.id}:{shot_key or 'auto'}",
         payload={"suggestionId": str(suggestion.id), "shotKey": shot_key},
         user_id=user.id,
-        message="Gerando preview",
+        message="Preparando a prévia numa foto",
     )
 
 

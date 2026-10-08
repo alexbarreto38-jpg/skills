@@ -22,6 +22,7 @@ from videodna.orchestrator.interfaces import (
     QARequest,
     QAResult,
 )
+from videodna.wording import duration as duration_label
 
 _BLACK_RE = re.compile(r"black_start:\s*([0-9.]+)\s+black_end:\s*([0-9.]+)")
 
@@ -52,14 +53,14 @@ class TechnicalQAProvider(QAProvider):
             return QAResult(
                 passed=False,
                 score=0.0,
-                summary="Saída não decodificável.",
+                summary="Não conseguimos abrir a cena gerada.",
                 issues=[
                     QAIssueCandidate(
                         issue_type=QAIssueType.ARTIFACTS.value,
                         severity=QASeverity.CRITICAL,
                         start_time=shot.start_time,
                         end_time=shot.end_time,
-                        description="O segmento gerado não pôde ser lido.",
+                        description="A cena gerada não pôde ser aberta.",
                     )
                 ],
                 checks=[QACheck(name="decodificável", passed=False)],
@@ -83,8 +84,8 @@ class TechnicalQAProvider(QAProvider):
                     start_time=shot.start_time,
                     end_time=shot.end_time,
                     description=(
-                        f"Duração do segmento ({duration:.2f}s) difere do shot original "
-                        f"({shot.duration:.2f}s)."
+                        f"A cena gerada tem {duration_label(duration)}, mas a original tem "
+                        f"{duration_label(shot.duration)}."
                     ),
                 )
             )
@@ -101,7 +102,8 @@ class TechnicalQAProvider(QAProvider):
                         start_time=shot.start_time,
                         end_time=shot.end_time,
                         description=(
-                            f"Resolução {width}x{height}, esperado {request.expected_height}p."
+                            f"A imagem saiu em {width}x{height}, mas deveria ter "
+                            f"{request.expected_height}p."
                         ),
                     )
                 )
@@ -125,7 +127,10 @@ class TechnicalQAProvider(QAProvider):
                     severity=QASeverity.HIGH,
                     start_time=shot.start_time,
                     end_time=shot.end_time,
-                    description=f"{black_out - black_in:.2f}s de quadros pretos inesperados.",
+                    description=(
+                        f"A cena ficou preta por {duration_label(black_out - black_in)}, "
+                        "o que não acontece no original."
+                    ),
                 )
             )
 
@@ -133,7 +138,9 @@ class TechnicalQAProvider(QAProvider):
         return QAResult(
             passed=passed,
             score=1.0 if passed else 0.5,
-            summary="Verificação técnica OK." if passed else "Problemas técnicos encontrados.",
+            summary="Checagem técnica sem problemas."
+            if passed
+            else "A checagem técnica achou problemas.",
             issues=issues,
             checks=checks,
             usage=ProviderUsageInfo(model="ffmpeg"),

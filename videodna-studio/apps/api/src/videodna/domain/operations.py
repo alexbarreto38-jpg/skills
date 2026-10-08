@@ -92,15 +92,32 @@ class OperationSpec(BaseModel):
 
 
 class OperationError(ValueError):
-    pass
+    """An operation that makes no sense for its target.
+
+    `str(exc)` is the developer detail, for logs and tests; `user_message` is the
+    pt-BR sentence the editor shows in its toast.
+    """
+
+    def __init__(self, detail: str, user_message: str) -> None:
+        super().__init__(detail)
+        self.user_message = user_message
+
+
+_GONE = (
+    "Não encontramos o elemento desta mudança; talvez a análise tenha mudado. "
+    "Atualize a página (F5) e tente de novo."
+)
+_WRITE_IT = "Escreva o que você quer mudar antes de aplicar."
+_PICK_ONE = "Escolha uma das opções ou escreva o que quer mudar."
+_BAD_CORRECTION = "Essa correção não é possível aqui. Escolha uma das opções sugeridas."
 
 
 def _entity_or_raise(dna: VideoDNA, entity_id: str | None) -> Entity:
     if not entity_id:
-        raise OperationError("operation requires an entity")
+        raise OperationError("operation requires an entity", _GONE)
     entity = dna.entity(entity_id)
     if entity is None:
-        raise OperationError(f"unknown entity {entity_id}")
+        raise OperationError(f"unknown entity {entity_id}", _GONE)
     return entity
 
 
@@ -108,38 +125,50 @@ def validate_operation(dna: VideoDNA, op: OperationSpec) -> None:
     """Reject operations that make no sense for the target element."""
     if op.op == EditOpType.INSTRUCTION and op.entity_id is None:
         if not (op.instruction or "").strip():
-            raise OperationError("instruction text is required")
+            raise OperationError("instruction text is required", _WRITE_IT)
         return
     entity = _entity_or_raise(dna, op.entity_id)
     allowed = ALLOWED_OPS.get(entity.type, _DEFAULT_ALLOWED)
     if op.op not in allowed:
-        raise OperationError(f"{op.op} is not allowed on a {entity.type}")
+        raise OperationError(
+            f"{op.op} is not allowed on a {entity.type}",
+            "Este tipo de mudança não vale para este elemento. "
+            "Escolha uma das opções mostradas para ele.",
+        )
     if not entity.editable and op.op not in {EditOpType.CORRECT, EditOpType.KEEP}:
-        raise OperationError(f"{entity.id} is not editable")
+        raise OperationError(
+            f"{entity.id} is not editable",
+            "Este elemento não pode ser mudado no vídeo. "
+            "Você ainda pode corrigir o nome dele ou mantê-lo como está.",
+        )
     if op.op == EditOpType.SET_ATTRIBUTE and not op.property:
-        raise OperationError("SET_ATTRIBUTE requires a property")
+        raise OperationError("SET_ATTRIBUTE requires a property", _PICK_ONE)
     if op.op == EditOpType.CORRECT:
         if not op.property or (
             op.property not in CORRECTABLE_FIELDS and not op.property.startswith("attributes.")
         ):
-            raise OperationError(f"cannot correct field {op.property!r}")
+            raise OperationError(f"cannot correct field {op.property!r}", _BAD_CORRECTION)
         if op.property == "importance" and op.new_value not in {i.value for i in Importance}:
-            raise OperationError("invalid importance")
+            raise OperationError("invalid importance", _BAD_CORRECTION)
         if op.property == "type" and op.new_value not in {t.value for t in EntityType}:
-            raise OperationError("invalid entity type")
+            raise OperationError("invalid entity type", _BAD_CORRECTION)
     has_dict = isinstance(op.new_value, dict)
     if op.op == EditOpType.REPLACE and not (has_dict and op.new_value.get("label")):
-        raise OperationError("REPLACE requires newValue.label")
+        raise OperationError(
+            "REPLACE requires newValue.label", "Diga pelo que você quer trocar este elemento."
+        )
     if op.op == EditOpType.APPLY_PRESET and not (has_dict and op.new_value.get("presetId")):
-        raise OperationError("APPLY_PRESET requires newValue.presetId")
+        raise OperationError("APPLY_PRESET requires newValue.presetId", _PICK_ONE)
     if op.op == EditOpType.CHANGE_APPEARANCE and not (
         isinstance(op.new_value, dict) or (op.instruction or "").strip()
     ):
-        raise OperationError("CHANGE_APPEARANCE requires attributes or an instruction")
+        raise OperationError("CHANGE_APPEARANCE requires attributes or an instruction", _PICK_ONE)
     if op.op == EditOpType.ADD_ENTITY and not (has_dict and op.new_value.get("label")):
-        raise OperationError("ADD_ENTITY requires newValue.label")
+        raise OperationError(
+            "ADD_ENTITY requires newValue.label", "Digite o nome do objeto que quer adicionar."
+        )
     if op.op == EditOpType.INSTRUCTION and not (op.instruction or "").strip():
-        raise OperationError("instruction text is required")
+        raise OperationError("instruction text is required", _WRITE_IT)
 
 
 def describe_entity(entity: Entity) -> str:

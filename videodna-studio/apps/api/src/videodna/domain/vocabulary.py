@@ -185,6 +185,22 @@ OBJECT_CLASSES: dict[str, ObjectClass] = {
 }
 
 
+# What a property lets an object do, worded to finish "Prato talvez não ...".
+# The English keys stay internal; warnings show only these phrases.
+PROPERTY_PHRASE_PT: dict[str, str] = {
+    "holdable": "caiba na mão",
+    "breakable": "quebre",
+    "container": "guarde líquido",
+    "sittable": "sirva de assento",
+    "surface": "sirva de apoio",
+}
+
+
+def property_phrases(properties: list[str] | tuple[str, ...]) -> str:
+    """('holdable', 'breakable') -> 'caiba na mão nem quebre'."""
+    return " nem ".join(PROPERTY_PHRASE_PT.get(p, "funcione") for p in dict.fromkeys(properties))
+
+
 def object_class(key: str | None) -> ObjectClass | None:
     if not key:
         return None

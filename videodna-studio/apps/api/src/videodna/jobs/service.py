@@ -114,7 +114,7 @@ def claim_job(session_factory: SessionFactory, job_id: uuid.UUID) -> bool:
                     m.Job.status == JobStatus.QUEUED,
                     m.Job.cancel_requested.is_(True),
                 )
-                .values(status=JobStatus.CANCELLED, finished_at=now, message="Cancelado")
+                .values(status=JobStatus.CANCELLED, finished_at=now, message="Cancelado por você")
                 .execution_options(synchronize_session=False)
             )
         session.commit()
@@ -128,7 +128,7 @@ def request_cancel(session: Session, job: m.Job) -> m.Job:
     if job.status == JobStatus.QUEUED:
         job.status = JobStatus.CANCELLED
         job.finished_at = datetime.now(UTC)
-        job.message = "Cancelado"
+        job.message = "Cancelado por você"
     return job
 
 

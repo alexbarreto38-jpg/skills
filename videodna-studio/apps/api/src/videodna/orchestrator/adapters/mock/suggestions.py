@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from videodna.domain.edit_options import CATEGORIES
-from videodna.domain.vocabulary import OBJECT_CLASSES, VERBS
+from videodna.domain.vocabulary import OBJECT_CLASSES, VERBS, property_phrases
 from videodna.orchestrator.adapters.mock import catalog
 from videodna.orchestrator.adapters.mock.base import MockMixin
 from videodna.orchestrator.interfaces import (
@@ -201,10 +201,15 @@ class MockSuggestionProvider(MockMixin, SuggestionProvider):
             if spec is None or not spec.requires_properties:
                 continue
             if cls is None:
-                return score - 0.1, f"física desconhecida para '{spec.label_pt}'"
+                return score - 0.1, (
+                    f"talvez não {property_phrases(spec.requires_properties)} "
+                    "como no vídeo original"
+                )
             missing = [p for p in spec.requires_properties if p not in cls.properties]
             if missing:
-                return score - 0.35, f"incompatível com '{spec.label_pt}'"
+                return score - 0.35, (
+                    f"incompatível: talvez não {property_phrases(missing)} como no vídeo original"
+                )
         if cls is not None:
             score += 0.1  # known physics → safer generation
         return round(min(score, 0.99), 3), None

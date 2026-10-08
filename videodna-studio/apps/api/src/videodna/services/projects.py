@@ -194,7 +194,11 @@ def duplicate_project(db: Session, runtime: Runtime, user: m.User, project: m.Pr
     Media is copied (not shared) so deleting either project can never break
     the other — deletion is a privacy guarantee, not a best effort."""
     if project.current_analysis_id is None:
-        raise AppError(ErrorCode.ANALYSIS_REQUIRED)
+        raise AppError(
+            ErrorCode.ANALYSIS_REQUIRED,
+            "Só dá para duplicar um projeto depois que a análise do vídeo terminar. "
+            "Abra o projeto e espere a análise.",
+        )
     clone = m.Project(
         owner_id=user.id,
         name=f"{project.name} (cópia)",
@@ -209,7 +213,11 @@ def duplicate_project(db: Session, runtime: Runtime, user: m.User, project: m.Pr
     source = latest_source(db, project.id)
     analysis = db.get(m.VideoAnalysis, project.current_analysis_id)
     if source is None or analysis is None:
-        raise AppError(ErrorCode.ANALYSIS_REQUIRED)
+        raise AppError(
+            ErrorCode.ANALYSIS_REQUIRED,
+            "Só dá para duplicar um projeto depois que a análise do vídeo terminar. "
+            "Abra o projeto e espere a análise.",
+        )
     new_source = m.SourceVideo(
         project_id=clone.id,
         **{

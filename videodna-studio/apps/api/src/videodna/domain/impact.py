@@ -34,7 +34,12 @@ from videodna.domain.vocabulary import (
     OBJECT_CLASSES,
     OCCLUSION_PREDICATES,
     VERBS,
+    property_phrases,
 )
+from videodna.wording import count, join_and, join_or
+
+# The switch that unblocks a story conflict, named as the editor shows it.
+_STORY_SWITCH = "desligue “Manter a história” em Opções avançadas"
 
 CHANGE_KIND_LABEL: dict[str, str] = {
     "METADATA": "correção da análise",
@@ -194,12 +199,6 @@ def _raise(level: ImpactLevel, to: ImpactLevel) -> ImpactLevel:
     return to if _LEVEL_ORDER.index(to) > _LEVEL_ORDER.index(level) else level
 
 
-def _role_of(dna: VideoDNA, entity_id: str) -> str | None:
-    if not dna.narrative:
-        return None
-    return next((role for role, ref in dna.narrative.roles.items() if ref == entity_id), None)
-
-
 def analyze_operation(
     original: VideoDNA,
     current: VideoDNA,
@@ -224,7 +223,11 @@ def analyze_operation(
             change_kind=kind,
             level=level,
             score=0.0,
-            reasons=["Correção de metadados: nenhuma geração necessária."],
+            reasons=[
+                "Este elemento continua igual ao original; nada precisa ser gerado."
+                if op.op == EditOpType.KEEP
+                else "Só corrige o que a análise entendeu: o vídeo não muda e nada é gerado."
+            ],
         )
 
     if entity is None:
@@ -235,7 +238,7 @@ def analyze_operation(
             change_kind=kind,
             level=ImpactLevel.MEDIUM,
             score=_LEVEL_SCORE[ImpactLevel.MEDIUM],
-            reasons=["Instrução geral: o escopo será definido pelo planejador."],
+            reasons=["Pedido geral: vale para o vídeo todo."],
             affected_shot_ids=shots,
         )
 
@@ -247,7 +250,13 @@ def analyze_operation(
     if kind == ChangeKind.ENVIRONMENT_FULL:
         shots = original.shots_for_entity(entity.id) or [s.id for s in original.shots]
     affected_shots: set[str] = set(shots)
-    reasons.append(f"{CHANGE_KIND_LABEL[kind.value].capitalize()} em {entity.label}")
+    # "Copo de vidro → Prato" says more than "Substituição de objeto em Copo de vidro".
+    if kind in {ChangeKind.OBJECT_REMOVE, ChangeKind.CHARACTER_REMOVE}:
+        reasons.append(f"Remover {entity.label}")
+    elif new_label != entity.label:
+        reasons.append(f"{entity.label} → {new_label}")
+    else:
+        reasons.append(f"{CHANGE_KIND_LABEL[kind.value].capitalize()}: {entity.label}")
 
     # --- actions: physical / temporal dependencies -------------------------
     if kind in {
@@ -260,6 +269,10 @@ def analyze_operation(
         new_class = OBJECT_CLASSES.get(
             str(current_entity.attributes.get("class", "")) if current_entity else ""
         )
+        unknown_props: list[str] = []
+        missing_props: list[str] = []
+        incompatible_blocks = False
+        lost_actions: list[str] = []
         for action in original.actions_involving(entity.id):
             spec = VERBS.get(action.verb)
             if spec is None:
@@ -287,45 +300,68 @@ def analyze_operation(
             if action.actor_id and action.actor_id != entity.id:
                 affected_entities.add(action.actor_id)
             if kind == ChangeKind.OBJECT_REPLACE and spec.requires_properties:
-                missing = [
-                    p
-                    for p in spec.requires_properties
-                    if new_class is not None and p not in new_class.properties
-                ]
                 if new_class is None and current_entity and current_entity.attributes.get("class"):
-                    warnings.append(
-                        ImpactWarning(
-                            code="PHYSICS_UNKNOWN",
-                            message=(
-                                f"Não sei se {new_label} consegue '{spec.label_pt}'. "
-                                "Revise o resultado com atenção."
-                            ),
-                            entity_id=entity.id,
-                        )
-                    )
-                elif missing:
-                    warnings.append(
-                        ImpactWarning(
-                            code="INCOMPATIBLE_ACTION",
-                            message=(
-                                f"{new_label} pode não ser compatível com a ação "
-                                f"'{spec.label_pt}' ({', '.join(missing)})."
-                            ),
-                            blocking=locks.story and action.essential,
-                            entity_id=entity.id,
-                        )
-                    )
+                    unknown_props += spec.requires_properties
+                elif new_class is not None:
+                    missing = [p for p in spec.requires_properties if p not in new_class.properties]
+                    missing_props += missing
+                    incompatible_blocks |= bool(missing) and locks.story and action.essential
             if kind in {ChangeKind.OBJECT_REMOVE, ChangeKind.CHARACTER_REMOVE} and action.essential:
-                warnings.append(
-                    ImpactWarning(
-                        code="STORY_LOCK" if locks.story else "STORY_CHANGE",
-                        message=(
-                            f"Remover {entity.label} elimina a ação essencial '{action.label}'."
-                        ),
-                        blocking=locks.story,
-                        entity_id=entity.id,
-                    )
+                lost_actions.append(f"“{action.label}”")
+
+        # One sentence per element, not one per action: removing the glass loses
+        # three actions, and three near-identical warnings read as three problems.
+        if unknown_props:
+            warnings.append(
+                ImpactWarning(
+                    code="PHYSICS_UNKNOWN",
+                    message=(
+                        f"Não conhecemos bem “{new_label}”: talvez não "
+                        f"{property_phrases(unknown_props)} como no vídeo original. "
+                        "Confira o resultado com atenção."
+                    ),
+                    entity_id=entity.id,
                 )
+            )
+        if missing_props:
+            warnings.append(
+                ImpactWarning(
+                    code="INCOMPATIBLE_ACTION",
+                    message=(
+                        f"{new_label} talvez não {property_phrases(missing_props)} como no vídeo "
+                        "original. "
+                        + (
+                            f"Escolha outro objeto ou {_STORY_SWITCH}."
+                            if incompatible_blocks
+                            else "Confira o resultado com atenção."
+                        )
+                    ),
+                    blocking=incompatible_blocks,
+                    entity_id=entity.id,
+                )
+            )
+        if lost_actions:
+            warnings.append(
+                ImpactWarning(
+                    code="STORY_LOCK" if locks.story else "STORY_CHANGE",
+                    message=(
+                        f"Remover {entity.label} apaga "
+                        + (
+                            "uma parte importante da história"
+                            if len(lost_actions) == 1
+                            else "partes importantes da história"
+                        )
+                        + f" ({join_and(lost_actions)}). "
+                        + (
+                            f"Para remover mesmo assim, {_STORY_SWITCH}."
+                            if locks.story
+                            else "A história do vídeo vai mudar."
+                        )
+                    ),
+                    blocking=locks.story,
+                    entity_id=entity.id,
+                )
+            )
 
     # --- derived entities (shards, spilled liquid...) -----------------------
     for derived in (e for e in original.entities if e.derived_from == entity.id):
@@ -336,7 +372,11 @@ def analyze_operation(
         deps.append(
             Dependency(
                 type=DependencyType.DERIVED_ENTITY,
-                description=f"{derived.label} → {cur.label if cur else derived.label}",
+                description=(
+                    f"{derived.label} → {cur.label}"
+                    if cur and cur.label != derived.label
+                    else f"Também muda: {derived.label}"
+                ),
                 entity_id=derived.id,
                 shot_ids=derived_shots,
             )
@@ -350,13 +390,19 @@ def analyze_operation(
             other_label = other.label if other else other_id
             if rel.predicate in CONTACT_PREDICATES and rel.predicate != "holds":
                 dep_type = DependencyType.CONTACT_SURFACE
-                text = f"Contato entre {new_label} e {other_label} deve ser preservado"
+                text = f"O contato entre {new_label} e {other_label} precisa continuar certo"
             elif rel.predicate in GAZE_PREDICATES and rel.object_id == entity.id:
                 dep_type = DependencyType.GAZE_TARGET
-                text = f"{other_label} olha para {new_label}: o olhar deve continuar coerente"
+                text = (
+                    f"{other_label} olha para {new_label}: o olhar precisa continuar "
+                    "na direção certa"
+                )
             elif rel.predicate in OCCLUSION_PREDICATES:
                 dep_type = DependencyType.OCCLUSION
-                text = f"Oclusão entre {new_label} e {other_label}"
+                text = (
+                    f"{new_label} e {other_label} se sobrepõem na imagem: "
+                    "a sobreposição precisa continuar certa"
+                )
             else:
                 continue
             deps.append(
@@ -376,7 +422,11 @@ def analyze_operation(
         deps.append(
             Dependency(
                 type=DependencyType.CHILD_ELEMENTS,
-                description=f"{len(children)} elementos do cenário serão adaptados ao novo estilo",
+                description=count(
+                    len(children),
+                    "elemento do cenário será adaptado ao novo estilo",
+                    "elementos do cenário serão adaptados ao novo estilo",
+                ),
                 entity_id=entity.id,
                 shot_ids=sorted(affected_shots),
             )
@@ -390,7 +440,7 @@ def analyze_operation(
             )
         )
         if locks.camera:
-            reasons.append("LOCK CAMERA: ângulo, movimento e cortes originais serão mantidos")
+            reasons.append("A câmera continua igual: mesmo ângulo, movimento e cortes")
 
     if kind == ChangeKind.ENVIRONMENT_PART and entity.subtype == "window_view":
         deps.append(
@@ -411,27 +461,26 @@ def analyze_operation(
                 Dependency(
                     type=DependencyType.CONTINUITY,
                     description=(
-                        f"Manter a aparência consistente em {len(affected_shots)} shots "
-                        "(Character Reference Pack)"
+                        f"A aparência de {_label(original, character_id)} precisa ficar igual "
+                        f"nas {len(affected_shots)} cenas"
                     ),
                     entity_id=character_id,
                     shot_ids=sorted(affected_shots),
                 )
             )
         if kind == ChangeKind.CHARACTER_REPLACE and locks.motion:
-            reasons.append("LOCK MOTION: pose, gestos e movimentos originais serão preservados")
+            reasons.append("Poses, gestos e movimentos continuam iguais ao original")
     elif entity.type in _OBJECT_TYPES and len(affected_shots) > 1:
         deps.append(
             Dependency(
                 type=DependencyType.CONTINUITY,
-                description=f"{new_label} deve permanecer igual em {len(affected_shots)} shots",
+                description=f"{new_label} precisa ficar igual nas {len(affected_shots)} cenas",
                 entity_id=entity.id,
                 shot_ids=sorted(affected_shots),
             )
         )
 
     # --- narrative role ------------------------------------------------------
-    role = _role_of(original, entity.id)
     if entity.importance == Importance.ESSENTIAL and kind not in {
         ChangeKind.ATTRIBUTE_COLOR,
         ChangeKind.LOCAL_APPEARANCE,
@@ -440,9 +489,8 @@ def analyze_operation(
             Dependency(
                 type=DependencyType.STORY_ROLE,
                 description=(
-                    "Elemento essencial da história"
-                    + (f" (papel {role})" if role else "")
-                    + (": a estrutura narrativa será preservada" if locks.story else "")
+                    "Parte importante da história"
+                    + (": a história continua a mesma" if locks.story else "")
                 ),
                 entity_id=entity.id,
                 shot_ids=sorted(affected_shots),
@@ -453,15 +501,15 @@ def analyze_operation(
     # --- uncertainty ---------------------------------------------------------
     # Judged on the edited DNA: replacing a doubtful element resolves the doubt.
     if current_entity is not None and current_entity.needs_review:
-        alternatives = " / ".join(
+        alternatives = join_or(
             [current_entity.label, *(a.label for a in current_entity.alternatives)]
         )
         warnings.append(
             ImpactWarning(
                 code="LOW_CONFIDENCE",
                 message=(
-                    f"Não tenho certeza sobre este elemento ({alternatives}). "
-                    "Confirme antes de gerar."
+                    f"A análise não tem certeza do que é este elemento ({alternatives}). "
+                    "Confirme o que é antes de gerar."
                 ),
                 entity_id=entity.id,
             )
@@ -469,7 +517,7 @@ def analyze_operation(
 
     if any(d.type in _ESCALATING for d in deps):
         level = ImpactLevel.HIGH
-        reasons.append("Envolve física, interação ou tracking ao longo do tempo")
+        reasons.append("Envolve mãos, quedas ou objetos quebrando ao longo do vídeo")
 
     score = _LEVEL_SCORE[level] + min(0.19, 0.02 * len(deps) + 0.01 * len(affected_shots))
     order = {s.id: s.index for s in original.shots}
@@ -485,6 +533,11 @@ def analyze_operation(
         dependencies=_dedupe(deps),
         warnings=warnings,
     )
+
+
+def _label(dna: VideoDNA, entity_id: str) -> str:
+    entity = dna.entity(entity_id)
+    return entity.label if entity else "o personagem"
 
 
 def _owning_character(dna: VideoDNA, entity: Entity) -> str | None:
@@ -515,14 +568,18 @@ def _describe_dependency(
         DependencyType.DESTRUCTION_FX: (
             f"{new_label} deve quebrar e os fragmentos devem parecer de {new_label.lower()}"
         ),
+        # Sound is not regenerated yet: with "Manter o som" off the result is silent.
         DependencyType.AUDIO_SFX: (
-            "O efeito sonoro poderia mudar com o novo objeto (recurso futuro"
-            + ("; LOCK AUDIO mantém o áudio original)" if locks.audio else ")")
+            "Os sons continuam os do vídeo original (“Manter o som” está ligado)"
+            if locks.audio
+            else "Mudar os sons junto com a imagem ainda não é possível nesta versão"
         ),
-        DependencyType.CONTINUITY: f"{entity.label} deve manter continuidade entre shots",
-        DependencyType.CONTACT_SURFACE: f"Contato físico de {new_label} deve ser preservado",
-        DependencyType.GAZE_TARGET: f"O olhar direcionado a {new_label} deve continuar coerente",
-    }.get(dep_type, dep_type.value)
+        DependencyType.CONTINUITY: f"{entity.label} precisa ficar igual de uma cena para a outra",
+        DependencyType.CONTACT_SURFACE: (
+            f"O contato de {new_label} com a superfície precisa continuar certo"
+        ),
+        DependencyType.GAZE_TARGET: f"O olhar na direção de {new_label} precisa continuar certo",
+    }.get(dep_type, "Precisa continuar coerente com o resto do vídeo")
     return Dependency(
         type=dep_type,
         description=text,

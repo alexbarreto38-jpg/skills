@@ -26,10 +26,11 @@ from sqlalchemy.orm import Session
 from videodna.api import schemas as s
 from videodna.db import models as m
 from videodna.domain.enums import JobKind, ProjectStatus, SourceVideoStatus
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import UPLOAD_GONE, AppError, ErrorCode
 from videodna.jobs.service import create_job
 from videodna.runtime import Runtime
 from videodna.storage.base import source_key
+from videodna.wording import file_size
 
 RIGHTS_STATEMENT = (
     "Declaro que sou o autor deste vídeo, que possuo licença para utilizá-lo ou que tenho "
@@ -52,6 +53,8 @@ def _validate_declared(runtime: Runtime, content_type: str, size: int, rights: b
     if size > settings.upload_max_bytes:
         raise AppError(
             ErrorCode.FILE_TOO_LARGE,
+            f"O arquivo tem {file_size(size)} e o limite é "
+            f"{file_size(settings.upload_max_bytes)}. Corte ou comprima o vídeo e envie de novo.",
             details={"sizeBytes": size, "maxBytes": settings.upload_max_bytes},
         )
 
@@ -116,7 +119,7 @@ def _source_for_upload(db: Session, project: m.Project, upload_id: str) -> m.Sou
         )
     )
     if source is None:
-        raise AppError(ErrorCode.NOT_FOUND, "Upload não encontrado.")
+        raise AppError(ErrorCode.NOT_FOUND, UPLOAD_GONE)
     return source
 
 
@@ -175,7 +178,6 @@ def complete_upload(
         db.flush()
         raise AppError(
             ErrorCode.UPLOAD_INCOMPLETE,
-            "O tamanho recebido difere do declarado.",
             details={"declared": source.size_bytes, "received": actual},
         )
     source.status = SourceVideoStatus.UPLOADED
@@ -209,7 +211,12 @@ def simple_upload(
             if size > max_bytes:
                 tmp.close()
                 Path(tmp.name).unlink(missing_ok=True)
-                raise AppError(ErrorCode.FILE_TOO_LARGE, details={"maxBytes": max_bytes})
+                raise AppError(
+                    ErrorCode.FILE_TOO_LARGE,
+                    f"O arquivo passa do limite de {file_size(max_bytes)}. "
+                    "Corte ou comprima o vídeo e envie de novo.",
+                    details={"maxBytes": max_bytes},
+                )
             tmp.write(chunk)
         tmp_path = Path(tmp.name)
     try:
@@ -266,7 +273,10 @@ def register_file(
 def abort_upload(db: Session, runtime: Runtime, project: m.Project, upload_id: str) -> None:
     source = _source_for_upload(db, project, upload_id)
     if source.status != SourceVideoStatus.PENDING_UPLOAD:
-        raise AppError(ErrorCode.CONFLICT, "O upload já foi concluído.")
+        raise AppError(
+            ErrorCode.CONFLICT,
+            "Este vídeo já terminou de ser enviado, então não dá mais para cancelar o envio.",
+        )
     runtime.storage.abort_multipart(source.storage_key, upload_id)
     db.delete(source)
     db.flush()
@@ -283,7 +293,7 @@ def _start_processing(
         idempotency_key=f"{kind.value.lower()}:{source.id}",
         payload={"sourceVideoId": str(source.id)},
         user_id=user.id,
-        message="Na fila para análise" if analyze else "Na fila para validação",
+        message="Na fila para análise" if analyze else "Na fila para conferir o vídeo",
     )
 
 

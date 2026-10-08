@@ -56,7 +56,9 @@ def restore_version(
     snapshot's ops are re-created as new ACTIVE operations."""
     version = db.get(m.ProjectVersion, version_id)
     if version is None or version.project_id != project.id:
-        raise NotFound("Esta versão não existe mais. Atualize a página (F5) para ver as versões atuais.")
+        raise NotFound(
+            "Esta versão não existe mais. Atualize a página (F5) para ver as versões atuais."
+        )
     db.execute(
         update(m.EditOperation)
         .where(

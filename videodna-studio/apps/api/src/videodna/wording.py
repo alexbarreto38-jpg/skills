@@ -23,13 +23,14 @@ RENDER_LABEL: dict[RenderKind, str] = {
     RenderKind.FINAL: "Versão final",
 }
 
+# How a scene will be made, worded to follow "Cena 2 · ".
 STRATEGY_LABEL: dict[Strategy, str] = {
     Strategy.PASSTHROUGH: "copiada do original",
     Strategy.ATTRIBUTE_EDIT: "ajuste de cor",
     Strategy.LOCALIZED_EDIT: "mudança só no elemento",
     Strategy.BACKGROUND_REPLACEMENT: "troca do cenário",
-    Strategy.SHOT_RECONSTRUCTION: "cena refeita",
-    Strategy.FULL_REGENERATION: "cena criada do zero",
+    Strategy.SHOT_RECONSTRUCTION: "refeita por inteiro",
+    Strategy.FULL_REGENERATION: "criada do zero",
 }
 
 
@@ -86,7 +87,16 @@ def count(n: int, singular: str, plural: str) -> str:
 
 def join_or(items: Iterable[str]) -> str:
     """['a', 'b', 'c'] -> 'a, b ou c'."""
+    return _join(items, "ou")
+
+
+def join_and(items: Iterable[str]) -> str:
+    """['a', 'b', 'c'] -> 'a, b e c'."""
+    return _join(items, "e")
+
+
+def _join(items: Iterable[str], last: str) -> str:
     parts = [p for p in items if p]
     if len(parts) <= 1:
         return "".join(parts)
-    return f"{', '.join(parts[:-1])} ou {parts[-1]}"
+    return f"{', '.join(parts[:-1])} {last} {parts[-1]}"

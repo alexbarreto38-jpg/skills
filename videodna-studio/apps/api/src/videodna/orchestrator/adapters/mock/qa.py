@@ -19,6 +19,7 @@ from videodna.orchestrator.interfaces import (
     QARequest,
     QAResult,
 )
+from videodna.wording import clock, count
 
 _PHYSICS = {DependencyType.PHYSICS_MOTION.value, DependencyType.DESTRUCTION_FX.value}
 _PHYSICAL_TYPES = {EntityType.OBJECT, EntityType.FURNITURE}
@@ -32,13 +33,8 @@ _CHECKS = [
     "cenário",
     "câmera",
     "anatomia",
-    "flickering",
+    "imagem piscando",
 ]
-
-
-def _fmt(t: float) -> str:
-    minutes, seconds = divmod(t, 60)
-    return f"{int(minutes):02d}:{seconds:04.1f}"
 
 
 class MockQAProvider(MockMixin, QAProvider):
@@ -64,7 +60,7 @@ class MockQAProvider(MockMixin, QAProvider):
                     start_time=start,
                     end_time=end,
                     description=(
-                        f"{label} desaparece entre {_fmt(start)} e {_fmt(end)} durante a ação."
+                        f"{label} desaparece entre {clock(start)} e {clock(end)} durante a ação."
                     ),
                     affected_entity_key=target.entity_key if target else None,
                 )
@@ -78,7 +74,7 @@ class MockQAProvider(MockMixin, QAProvider):
             summary=(
                 "Nenhuma inconsistência encontrada."
                 if passed
-                else f"{len(issues)} inconsistência(s) encontrada(s)."
+                else f"{count(len(issues), 'problema encontrado', 'problemas encontrados')}."
             ),
             issues=issues,
             checks=checks,

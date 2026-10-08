@@ -43,7 +43,7 @@ HAIR_STYLES: list[Item] = [
     {"label": "Cacheado", "value": "cacheado", "shape": "curly", "tags": ["neutral"]},
     {"label": "Ondulado", "value": "ondulado", "shape": "wavy", "tags": ["neutral"]},
     {"label": "Liso", "value": "liso", "shape": "straight", "tags": ["neutral"]},
-    {"label": "Buzz cut", "value": "buzz cut", "shape": "buzz", "tags": ["neutral"]},
+    {"label": "Raspado", "value": "raspado", "shape": "buzz", "tags": ["neutral"]},
     {"label": "Social", "value": "social", "shape": "side_part", "tags": ["formal", "adult"]},
     {"label": "Afro", "value": "afro", "shape": "afro", "tags": ["neutral"]},
     {"label": "Trançado", "value": "trançado", "shape": "braids", "tags": ["neutral"]},

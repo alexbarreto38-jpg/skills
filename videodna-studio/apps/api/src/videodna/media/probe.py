@@ -7,6 +7,7 @@ from math import gcd
 from pathlib import Path
 from typing import Any
 
+from videodna import wording
 from videodna.config import Settings
 from videodna.domain.video_dna import AudioStreamInfo, TechnicalMetadata
 from videodna.errors import AppError, ErrorCode
@@ -55,7 +56,10 @@ def probe(path: Path, *, with_keyframes: bool = True) -> TechnicalMetadata:
     streams = data.get("streams", [])
     video = next((s for s in streams if s.get("codec_type") == "video"), None)
     if video is None:
-        raise AppError(ErrorCode.INVALID_VIDEO, "O arquivo não possui uma faixa de vídeo.")
+        raise AppError(
+            ErrorCode.INVALID_VIDEO,
+            "Este arquivo não tem imagem (parece ser só áudio). Envie um arquivo de vídeo.",
+        )
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
     fmt = data.get("format", {})
 
@@ -65,12 +69,20 @@ def probe(path: Path, *, with_keyframes: bool = True) -> TechnicalMetadata:
     if rotation in {90, 270}:
         width, height = height, width
     if width <= 0 or height <= 0:
-        raise AppError(ErrorCode.INVALID_VIDEO, "Resolução de vídeo inválida.")
+        raise AppError(
+            ErrorCode.INVALID_VIDEO,
+            "Não conseguimos ler o tamanho da imagem deste vídeo; ele pode estar corrompido. "
+            "Salve o vídeo de novo em MP4 e envie outra vez.",
+        )
 
     fps = _rate(video.get("avg_frame_rate")) or _rate(video.get("r_frame_rate"))
     duration = float(video.get("duration") or fmt.get("duration") or 0.0)
     if fps <= 0 or duration <= 0:
-        raise AppError(ErrorCode.INVALID_VIDEO, "Não foi possível determinar duração/FPS.")
+        raise AppError(
+            ErrorCode.INVALID_VIDEO,
+            "Não conseguimos ler a duração deste vídeo; ele pode estar corrompido. "
+            "Salve o vídeo de novo em MP4 e envie outra vez.",
+        )
     frame_count = int(video.get("nb_frames") or 0) or round(duration * fps)
 
     sar = video.get("sample_aspect_ratio") or "1:1"
@@ -114,16 +126,26 @@ def validate_technical(technical: TechnicalMetadata, settings: Settings) -> None
     if codec not in {c.lower() for c in settings.video_allowed_codecs}:
         raise AppError(
             ErrorCode.UNSUPPORTED_MEDIA,
-            f"Codec de vídeo não suportado: {technical.video_codec}.",
+            "Este vídeo foi gravado num formato que não aceitamos. "
+            "Salve o vídeo de novo em MP4 e envie outra vez.",
             details={"codec": technical.video_codec, "allowed": settings.video_allowed_codecs},
         )
     if technical.duration_sec > settings.video_max_duration_sec:
         raise AppError(
             ErrorCode.VIDEO_TOO_LONG,
+            f"O vídeo tem {wording.minutes(technical.duration_sec)} e o limite é "
+            f"{wording.minutes(settings.video_max_duration_sec)}. "
+            "Corte um trecho menor e envie de novo.",
             details={
                 "durationSec": technical.duration_sec,
                 "maxDurationSec": settings.video_max_duration_sec,
             },
         )
     if technical.duration_sec < settings.video_min_duration_sec:
-        raise AppError(ErrorCode.INVALID_VIDEO, "O vídeo é curto demais para análise.")
+        has = wording.duration(technical.duration_sec)
+        needs = wording.duration(settings.video_min_duration_sec)
+        raise AppError(
+            ErrorCode.INVALID_VIDEO,
+            f"O vídeo é curto demais para analisar (tem {has}). "
+            f"Envie um vídeo com pelo menos {needs}.",
+        )

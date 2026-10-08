@@ -292,7 +292,8 @@ def test_sse_stream_replays_events_and_ends(client, sample_video):
     ]
     assert events[0]["status"] == "QUEUED" and events[-1]["status"] == "COMPLETED"
     assert "event: end" in body
-    assert any("shots detectados" in (e["message"] or "") for e in events)
+    # e.g. "6 cenas encontradas; separando 12 fotos para a IA olhar"
+    assert any(" encontrada" in (e["message"] or "") for e in events)
 
 
 @requires_ffmpeg
@@ -318,7 +319,9 @@ def test_retries_are_capped_and_reported(client, sample_video, runtime):
     assert job["status"] == "COMPLETED"
     assert job["result"]["needsAttention"] is True
     unresolved = job["result"]["unresolvedIssues"]
-    assert unresolved and unresolved[0]["message"] == "Esta parte ainda apresenta inconsistência."
+    assert unresolved and unresolved[0]["message"] == (
+        "Este trecho ainda pode ter erro; assista antes de usar."
+    )
     qa = ok(client.get(f"/jobs/{job['id']}/qa"))
     attempts = {(r["shotKey"], r["attempt"]) for r in qa if r["provider"] == "mock-inspector"}
     assert max(a for _, a in attempts) == 1  # exactly one repair attempt in ECONOMY

@@ -15,6 +15,10 @@ vídeo final mantendo áudio, duração e cortes.
 > ainda, **de propósito**: cada um entra como um adapter, depois de conferida a
 > documentação oficial dele (ver [docs/providers.md](docs/providers.md)).
 
+> **Vai usar o programa (e não desenvolver)?** Comece pelo
+> [Guia do usuário](docs/guia-do-usuario.md): instalação no Windows passo a passo, as seis
+> etapas de uma edição e o que cada palavra da tela quer dizer.
+
 ---
 
 ## Sumário
@@ -555,6 +559,7 @@ Detalhes: [docs/security-privacy.md](docs/security-privacy.md).
 
 ## Documentação adicional
 
+- [docs/guia-do-usuario.md](docs/guia-do-usuario.md) — guia de uso para quem não é desenvolvedor
 - [docs/architecture.md](docs/architecture.md) — módulos, fluxos de análise e geração, modelo de dados
 - [docs/video-dna.md](docs/video-dna.md) — schema do Video DNA, operações, impacto e dependências
 - [docs/providers.md](docs/providers.md) — registry, roteamento e como adicionar um provider real

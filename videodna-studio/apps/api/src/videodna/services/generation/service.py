@@ -23,6 +23,16 @@ from videodna.services.generation.planner import (
 from videodna.services.media_urls import signed
 from videodna.services.projects import settings_of
 
+# The downloaded file lands in the user's Downloads folder: name it in Portuguese.
+_FILE_WORD: dict[OutputKind, str] = {
+    OutputKind.PREVIEW: "previa",
+    OutputKind.FINAL: "final",
+    OutputKind.SHOT_SEGMENT: "cena",
+    OutputKind.IMAGE_PREVIEW: "foto",
+    OutputKind.REFERENCE_IMAGE: "referencia",
+    OutputKind.PROVENANCE: "origem",
+}
+
 
 def plan_to_out(
     spec: GenerationPlanSpec, row: m.GenerationPlan | None, *, stale: bool = False
@@ -146,7 +156,7 @@ def output_out(runtime: Runtime, row: m.GenerationOutput) -> s.OutputOut:
     out.download_url = signed(
         runtime,
         row.storage_key,
-        download_name=f"videodna-{row.kind.value.lower()}-{str(row.id)[:8]}.{ext}",
+        download_name=f"videodna-{_FILE_WORD.get(row.kind, 'arquivo')}-{str(row.id)[:8]}.{ext}",
         content_type=row.content_type,
     )
     return out

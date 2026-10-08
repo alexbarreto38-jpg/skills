@@ -34,7 +34,7 @@ from videodna.domain.enums import (
     RenderKind,
 )
 from videodna.domain.video_dna import Shot, TrackSample, VideoDNA
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import PLAN_GONE, AppError, ErrorCode
 from videodna.jobs.runner import JobContext
 from videodna.logging_setup import get_logger
 from videodna.media import transcode
@@ -56,6 +56,8 @@ from videodna.services.analysis.persistence import dna_from_json
 from videodna.services.generation.plan_models import GenerationPlanSpec, GenerationStep, ShotPlan
 from videodna.services.generation.planner import current_fingerprint, planned_dna
 from videodna.storage.base import job_key
+from videodna.wording import QUALITY_LABEL, RENDER_LABEL, clock, count, scene
+from videodna.wording import duration as duration_label
 
 log = get_logger(__name__)
 
@@ -90,7 +92,7 @@ def _load(ctx: JobContext) -> tuple[m.GenerationPlan, GenerationPlanSpec, VideoD
     with ctx.session() as session:
         plan_row = session.get(m.GenerationPlan, ctx.plan_id)
         if plan_row is None:
-            raise AppError(ErrorCode.NOT_FOUND, "Plano não encontrado.")
+            raise AppError(ErrorCode.NOT_FOUND, PLAN_GONE)
         analysis = session.get(m.VideoAnalysis, plan_row.analysis_id)
         source = session.get(m.SourceVideo, analysis.source_video_id)
         plan = GenerationPlanSpec.model_validate(plan_row.plan)
@@ -181,8 +183,9 @@ def _build_reference_packs(
                 )
             except AppError as exc:
                 ctx.reporter.log(
-                    f"Reference pack {pack.label}: imagem {i + 1} falhou ({exc.code.value})",
+                    f"Uma imagem de referência de {entity.label} falhou; seguimos com as outras.",
                     level="warning",
+                    data={"pack": pack.id, "errorCode": exc.code.value},
                 )
                 continue
             result = out.result
@@ -242,8 +245,10 @@ def _segment(run: Run, shot_plan: ShotPlan, specs: list[EditSpec]) -> None:
         )
     except AppError as exc:
         ctx.reporter.log(
-            f"Máscaras indisponíveis no {shot.id} ({exc.code.value}); usando só tracking",
+            f"{scene(shot.id, shot.index)}: o recorte exato do elemento não ficou pronto; "
+            "usamos o contorno aproximado.",
             level="warning",
+            data={"shotKey": shot.id, "errorCode": exc.code.value},
         )
         return
     run.spent += out.actual_cost
@@ -272,11 +277,14 @@ def _decision_for(
         if step.estimated_cost and decision.estimated_cost > ceiling:
             raise AppError(
                 ErrorCode.NO_PROVIDER_AVAILABLE,
-                "O provider planejado não está disponível e a alternativa custaria bem mais.",
+                "O serviço de IA planejado saiu do ar e o substituto custaria bem mais. "
+                "Paramos para não gastar sem você saber: tente de novo mais tarde.",
                 details={"planned": step.provider, "alternative": decision.provider},
             )
         ctx.reporter.log(
-            f"Provider {step.provider} indisponível; usando {decision.provider}", level="warning"
+            "Um serviço de IA não respondeu; trocamos por outro de custo parecido.",
+            level="warning",
+            data={"planned": step.provider, "used": decision.provider},
         )
     return task, decision
 
@@ -369,9 +377,16 @@ def _run_qa(run: Run, state: ShotState, original_path: Path) -> list[QAIssueCand
                 context=ctx.usage(shot.id),
             )
         except AppError as exc:
+            what = (
+                "a conferência por IA"
+                if capability == Capability.QA_VIDEO_INSPECTION
+                else "a checagem técnica"
+            )
             ctx.reporter.log(
-                f"QA {capability.value} indisponível no {shot.id} ({exc.code.value})",
+                f"{scene(shot.id, shot.index)}: não deu para fazer {what} desta vez; "
+                "assista a esta cena com atenção.",
                 level="warning",
+                data={"shotKey": shot.id, "errorCode": exc.code.value},
             )
             continue
         run.spent += outcome.actual_cost
@@ -500,7 +515,8 @@ def run_generation_job(ctx: JobContext) -> dict[str, Any]:
                 quantity=plan.summary.affected_shots,
                 unit="shot",
                 description=(
-                    f"Estimativa do plano ({plan.quality_mode.value}, {plan.resolution_label})"
+                    f"Estimativa do plano ({RENDER_LABEL[plan.render_kind]} "
+                    f"{plan.resolution_label}, {QUALITY_LABEL[plan.quality_mode]})"
                 ),
             )
         )
@@ -530,7 +546,7 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
     reporter = ctx.reporter
 
     # --- PREPARING: source media, reference packs ------------------------------------
-    reporter.progress("prepare", 2, "Preparando mídia de origem", status=JobStatus.PREPARING)
+    reporter.progress("prepare", 2, "Preparando o vídeo original", status=JobStatus.PREPARING)
     if plan.render_kind == RenderKind.PREVIEW and source.proxy_key:
         input_path = storage.download(source.proxy_key, ctx.workdir / "input.mp4")
     else:
@@ -543,7 +559,13 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         reporter.progress(
             "references",
             6,
-            f"Criando {len(plan.reference_packs)} reference pack(s) de continuidade",
+            "Preparando "
+            + count(
+                len(plan.reference_packs),
+                "referência visual",
+                "referências visuais",
+            )
+            + " para manter personagens e cenário iguais em todas as cenas",
         )
         references = _build_reference_packs(ctx, plan, dna)
 
@@ -569,7 +591,7 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         reporter.progress(
             "generate",
             10 + 55 * (done - 1) / max(1, len(to_generate)),
-            f"Gerando cena {done}/{len(to_generate)} ({shot.id} · {state.plan.strategy.value})",
+            f"Gerando a {scene(shot.id, shot.index).lower()} ({done} de {len(to_generate)})",
             status=JobStatus.GENERATING,
             data={"shotKey": shot.id, "strategy": state.plan.strategy.value},
         )
@@ -605,14 +627,16 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         reporter.progress(
             "qa",
             66 + 20 * (i - 1) / max(1, len(to_generate)),
-            f"Verificando qualidade {i}/{len(to_generate)} ({shot.id})",
+            f"Conferindo a qualidade da {scene(shot.id, shot.index).lower()} "
+            f"({i} de {len(to_generate)})",
             status=JobStatus.QA,
         )
         issues = _severe(_run_qa(run, state, input_path), min_severity)
         while issues and state.attempts < plan.max_retries:
             if run.spent >= run.budget:
                 reporter.log(
-                    "Orçamento de reparo atingido; parando novas tentativas", level="warning"
+                    "O limite de gasto com correções foi atingido; não vamos tentar de novo.",
+                    level="warning",
                 )
                 break
             state.attempts += 1
@@ -620,8 +644,9 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
             reporter.progress(
                 "repair",
                 66 + 20 * (i - 1) / max(1, len(to_generate)),
-                f"Corrigindo {shot.id}: {issue.description} "
-                f"(tentativa {state.attempts}/{plan.max_retries})",
+                f"Corrigindo a {scene(shot.id, shot.index).lower()}: "
+                f"{issue.description.rstrip('.')} "
+                f"(tentativa {state.attempts} de {plan.max_retries})",
                 status=JobStatus.REPAIRING,
                 data={
                     "shotKey": shot.id,
@@ -645,14 +670,16 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
                         "start": issue.start_time,
                         "end": issue.end_time,
                         "description": issue.description,
-                        "message": "Esta parte ainda apresenta inconsistência.",
+                        "message": "Este trecho ainda pode ter erro; assista antes de usar.",
                     }
                 )
         elif state.attempts == 0:
             _close_issues(ctx, shot.id, QAIssueStatus.REPAIRED)
 
     # --- ASSEMBLING --------------------------------------------------------------------
-    reporter.progress("assemble", 88, "Montando a timeline final", status=JobStatus.ASSEMBLING)
+    reporter.progress(
+        "assemble", 88, "Juntando as cenas no vídeo final", status=JobStatus.ASSEMBLING
+    )
     ordered = [s.segment for s in sorted(shots, key=lambda s: s.shot.index)]
     video_only = transcode.concat_segments(ordered, ctx.workdir / "assembled.mp4", fps=run.fps)
     audio_source = input_path if dna.technical.has_audio and plan.locks.audio else None
@@ -665,8 +692,8 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         0.1, 3 / run.fps
     ):
         reporter.log(
-            f"Duração final {final_duration:.2f}s difere da original "
-            f"{dna.technical.duration_sec:.2f}s",
+            f"O vídeo final ficou com {duration_label(final_duration)} e o original tem "
+            f"{duration_label(dna.technical.duration_sec)}; confira o final do vídeo.",
             level="warning",
         )
 
@@ -755,7 +782,10 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         version = m.ProjectVersion(
             project_id=ctx.project_id,
             number=number,
-            name=f"Versão {number} — {plan.resolution_label} {plan.quality_mode.value.lower()}",
+            name=(
+                f"Versão {number} — {RENDER_LABEL[plan.render_kind]} {plan.resolution_label} · "
+                f"{QUALITY_LABEL[plan.quality_mode]}"
+            ),
             analysis_id=uuid.UUID(plan.analysis_id),
             operations=[o.model_dump(mode="json", by_alias=True) for o in plan.operations],
             settings={
@@ -792,9 +822,7 @@ def _execute(run: Run, plan_row: m.GenerationPlan, source: m.SourceVideo) -> dic
         "unresolvedIssues": unresolved,
         "repairs": sum(s.attempts for s in shots),
         "_message": (
-            "Concluído — algumas partes ainda apresentam inconsistência"
-            if needs_attention
-            else "Concluído"
+            "Concluído — há trechos para conferir antes de usar" if needs_attention else "Concluído"
         ),
     }
 
@@ -861,11 +889,7 @@ def _repair(
             fps=run.fps,
         )
     ctx.reporter.log(
-        f"{shot.id}: "
-        + (
-            "shot inteiro regenerado"
-            if whole
-            else f"trecho {start:.2f}s–{end:.2f}s regenerado e substituído"
-        ),
+        f"{scene(shot.id, shot.index)}: "
+        + ("refeita por inteiro" if whole else f"trecho de {clock(start)} a {clock(end)} refeito"),
         data={"shotKey": shot.id, "whole": whole, "start": start, "end": end},
     )

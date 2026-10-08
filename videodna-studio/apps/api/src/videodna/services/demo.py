@@ -58,7 +58,9 @@ def create_demo_project(
     if not runtime.settings.ai_mock_mode:
         # With real providers the sample would spend credits analysing coloured boxes.
         raise AppError(
-            ErrorCode.CONFLICT, "O vídeo de exemplo só está disponível no modo demonstração."
+            ErrorCode.CONFLICT,
+            "O vídeo de exemplo só está disponível no modo demonstração. "
+            "Envie um vídeo seu para começar.",
         )
     # Serialise per user (a no-op on SQLite): a double click must not create two.
     db.execute(select(m.User.id).where(m.User.id == user.id).with_for_update())
