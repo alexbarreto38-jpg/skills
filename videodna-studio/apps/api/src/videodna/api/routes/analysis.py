@@ -19,7 +19,7 @@ from videodna.db import models as m
 from videodna.domain.edit_options import categories_for, quick_actions_for
 from videodna.domain.enums import EditOpType, EditSource, EntityType, JobKind
 from videodna.domain.video_dna import Entity, VideoDNA
-from videodna.errors import AppError, ErrorCode, NotFound
+from videodna.errors import ELEMENT_GONE, AppError, ErrorCode, NotFound
 from videodna.jobs.queue import get_queue
 from videodna.jobs.service import create_job
 from videodna.runtime import Runtime
@@ -46,7 +46,10 @@ def analyze(
     project = get_owned_project(db, user, project_id)
     source = latest_source(db, project.id)
     if source is None:
-        raise AppError(ErrorCode.UPLOAD_INCOMPLETE, "Envie um vídeo antes de analisar.")
+        raise AppError(
+            ErrorCode.UPLOAD_INCOMPLETE,
+            "Este projeto ainda não tem vídeo. Envie um vídeo para começar a análise.",
+        )
     force = bool(req and req.force)
     key = f"analysis:{source.id}" + (f":force:{uuid.uuid4().hex[:8]}" if force else "")
     job, created = create_job(
@@ -177,10 +180,10 @@ def list_entities(
 def _owned_entity(db, user, entity_id: uuid.UUID) -> tuple[m.Entity, m.Project]:
     row = db.get(m.Entity, entity_id)
     if row is None:
-        raise NotFound("Elemento")
+        raise NotFound(ELEMENT_GONE)
     project = get_owned_project(db, user, row.project_id)
     if row.analysis_id != project.current_analysis_id:
-        raise NotFound("Elemento")
+        raise NotFound(ELEMENT_GONE)
     return row, project
 
 

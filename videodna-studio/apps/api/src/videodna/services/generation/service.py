@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from videodna.api import schemas as s
 from videodna.db import models as m
 from videodna.domain.enums import CostKind, JobKind, OutputKind, PlanStatus
-from videodna.errors import AppError, ErrorCode, NotFound
+from videodna.errors import PLAN_GONE, AppError, ErrorCode, NotFound
 from videodna.jobs.service import create_job
 from videodna.runtime import Runtime
 from videodna.services.generation.plan_models import GenerationPlanSpec
@@ -79,7 +79,7 @@ def get_plan(
 ) -> tuple[m.GenerationPlan, GenerationPlanSpec, bool]:
     row = db.get(m.GenerationPlan, plan_id)
     if row is None or row.project_id != project.id:
-        raise NotFound("Plano")
+        raise NotFound(PLAN_GONE)
     spec = GenerationPlanSpec.model_validate(row.plan)
     stale = (
         current_fingerprint(db, project, row.quality_mode, row.render_kind) != row.ops_fingerprint
@@ -106,7 +106,11 @@ def start_generation(
     if existing is not None:
         return existing, False  # same request repeated: never generate twice
     if row.status != PlanStatus.DRAFT:
-        raise AppError(ErrorCode.CONFLICT, "Este plano já foi executado. Crie um novo plano.")
+        raise AppError(
+            ErrorCode.CONFLICT,
+            "Este plano já foi usado para gerar um vídeo. "
+            "Clique em “Revisar e gerar” para montar um novo.",
+        )
     if stale:
         raise AppError(ErrorCode.PLAN_STALE)
     if nothing_to_generate(spec):

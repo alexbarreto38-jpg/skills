@@ -12,6 +12,10 @@
 # override file (see docker-compose.s3.yml):
 #   docker compose -f docker-compose.yml -f docker-compose.s3.yml up -d --build
 #
+# Published ports listen on 127.0.0.1 only: the dev stack logs everyone in
+# automatically (AUTH_DEV_AUTOLOGIN) and must not be reachable from the network.
+# Services restart with Docker Desktop, so the studio is back after a reboot.
+#
 # Everything runs in AI_MOCK_MODE by default: no API keys, no credits spent.
 # Behind a TLS-intercepting proxy, export EXTRA_CA_CERT=/path/to/proxy-ca.pem
 # before building (see README).
@@ -41,6 +45,7 @@ x-backend-build: &backend-build
 
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: videodna
@@ -54,6 +59,7 @@ services:
       retries: 20
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -62,16 +68,18 @@ services:
       retries: 20
 
   api:
+    restart: unless-stopped
     build: *backend-build
     image: videodna/api:local
     environment: *backend-env
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     volumes: [storage:/data/storage]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 
   worker:
+    restart: unless-stopped
     image: videodna/api:local
     # Same image as the api; built by the api service. "never" keeps compose
     # from trying to pull it from a registry before the api build finishes.
@@ -85,6 +93,7 @@ services:
       api: { condition: service_healthy }
 
   web:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -92,7 +101,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     image: videodna/web:local
-    ports: ["3000:3000"]
+    ports: ["127.0.0.1:3000:3000"]
     depends_on:
       api: { condition: service_healthy }
 

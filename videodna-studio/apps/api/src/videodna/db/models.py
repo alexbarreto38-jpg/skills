@@ -39,6 +39,7 @@ from sqlalchemy import (
     Uuid,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.expression import false
 
 from videodna.db.base import Base, JSONType, Timestamps, UUIDPk, utcnow
 from videodna.domain.enums import (
@@ -113,6 +114,10 @@ class Project(UUIDPk, Timestamps, Base):
     # Not a FK: avoids a project <-> analysis cycle; integrity kept by services.
     current_analysis_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
     duplicated_from_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    # Created from the bundled sample video ("Experimentar com um vídeo de exemplo").
+    is_demo: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     owner: Mapped[User] = relationship(back_populates="projects")
     source_videos: Mapped[list[SourceVideo]] = relationship(

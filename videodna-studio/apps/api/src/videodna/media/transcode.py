@@ -10,12 +10,19 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from videodna.logging_setup import get_logger
 from videodna.media.ffmpeg import FFmpegError, ffprobe_json, run_ffmpeg
 
+log = get_logger(__name__)
 
-def _scale_filter(height: int) -> str:
-    # Never upscale; keep aspect ratio; even dimensions for yuv420p.
-    return f"scale=-2:'min({height},ih)':flags=bicubic"
+
+def _scale_filter(resolution: int) -> str:
+    """Scale so the *short* side is `resolution` ("720p" for a vertical phone video
+    is 720x1280, not 406x720). Never upscale; keep aspect; even sizes for yuv420p."""
+    return (
+        f"scale='if(gte(iw,ih),-2,min({resolution},iw))'"
+        f":'if(gte(iw,ih),min({resolution},ih),-2)':flags=bicubic"
+    )
 
 
 def _video_args(fps: float, crf: int = 21, preset: str = "veryfast") -> list[str]:
@@ -38,36 +45,34 @@ def _video_args(fps: float, crf: int = 21, preset: str = "veryfast") -> list[str
 def make_proxy(src: Path, dest: Path, *, height: int = 720) -> Path:
     """Streaming-friendly 720p proxy for the editor (never load the original)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
-    run_ffmpeg(
-        [
-            "-i",
-            str(src),
-            "-map",
-            "0:v:0",
-            "-map",
-            "0:a:0?",
-            "-vf",
-            _scale_filter(height),
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            "23",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
-            # Drop private metadata (GPS, device) from derived files.
-            "-map_metadata",
-            "-1",
-            str(dest),
-        ]
-    )
+    video_args = [
+        "-vf",
+        _scale_filter(height),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-pix_fmt",
+        "yuv420p",
+    ]
+    tail = [
+        "-movflags",
+        "+faststart",
+        # Drop private metadata (GPS, device) from derived files.
+        "-map_metadata",
+        "-1",
+        str(dest),
+    ]
+    audio_args = ["-map", "0:a:0?", "-c:a", "aac", "-b:a", "128k"]
+    try:
+        run_ffmpeg(["-i", str(src), "-map", "0:v:0", *audio_args, *video_args, *tail])
+    except FFmpegError:
+        # A sound track FFmpeg cannot decode (e.g. a phone's spatial audio) must not
+        # sink the whole analysis: the editor proxy works fine without sound.
+        log.warning("proxy with audio failed; retrying without audio", extra={"src": src.name})
+        run_ffmpeg(["-i", str(src), "-map", "0:v:0", "-an", *video_args, *tail])
     return dest
 
 
@@ -250,6 +255,6 @@ def probe_video_size(path: Path) -> tuple[int, int]:
 
 
 def target_height(source_height: int, wanted: int) -> int:
-    """Output height: never upscale, always even."""
+    """Output resolution class (the short side, as in "720p"): never upscale, always even."""
     h = min(source_height, wanted)
     return h - (h % 2)

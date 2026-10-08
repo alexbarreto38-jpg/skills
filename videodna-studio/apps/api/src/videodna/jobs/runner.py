@@ -8,18 +8,27 @@ from __future__ import annotations
 
 import importlib
 import shutil
+import threading
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from videodna.db import models as m
 from videodna.domain.enums import JobKind, JobStatus
 from videodna.errors import AppError, ErrorCode
-from videodna.jobs.service import JobCancelled, JobReporter, claim_job
+from videodna.jobs.service import (
+    HEARTBEAT_EVERY,
+    JobCancelled,
+    JobReporter,
+    SessionFactory,
+    claim_job,
+)
 from videodna.logging_setup import bind_context, get_logger, reset_context
 from videodna.orchestrator.gateway import UsageContext
 from videodna.runtime import Runtime, get_runtime
@@ -65,6 +74,39 @@ def _handler(kind: JobKind) -> Callable[[JobContext], dict[str, Any] | None]:
     return getattr(importlib.import_module(module_name), func)
 
 
+class _Heartbeat:
+    """Refreshes heartbeat_at while a job runs, even during long silent steps
+    (an FFmpeg pass, a provider call), so a stale heartbeat reliably means the
+    worker is gone (see jobs.service.fail_stale_jobs)."""
+
+    def __init__(self, session_factory: SessionFactory, job_id: uuid.UUID) -> None:
+        self._session_factory = session_factory
+        self._job_id = job_id
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name=f"heartbeat-{job_id}", daemon=True)
+
+    def __enter__(self) -> _Heartbeat:
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self._stop.set()
+        self._thread.join(timeout=5)
+
+    def _run(self) -> None:
+        while not self._stop.wait(HEARTBEAT_EVERY.total_seconds()):
+            try:
+                with self._session_factory() as session:
+                    session.execute(
+                        update(m.Job)
+                        .where(m.Job.id == self._job_id)
+                        .values(heartbeat_at=datetime.now(UTC))
+                    )
+                    session.commit()
+            except Exception:  # a missed beat must never break the job itself
+                log.warning("heartbeat failed", exc_info=True)
+
+
 def run_job(job_id: uuid.UUID, runtime: Runtime | None = None) -> None:
     runtime = runtime or get_runtime()
     token = bind_context(job_id=str(job_id))
@@ -90,7 +132,8 @@ def run_job(job_id: uuid.UUID, runtime: Runtime | None = None) -> None:
                 workdir=workdir,
             )
         try:
-            result = _handler(ctx.kind)(ctx) or {}
+            with _Heartbeat(runtime.session_factory, job_id):
+                result = _handler(ctx.kind)(ctx) or {}
             message = result.pop("_message", "Concluído")
             ctx.reporter.finish(JobStatus.COMPLETED, message=message, result=result)
             log.info("job completed")

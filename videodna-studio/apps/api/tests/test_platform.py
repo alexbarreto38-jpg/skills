@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import boto3
@@ -17,8 +19,22 @@ from sqlalchemy import create_engine, inspect
 
 from videodna.api.security import create_access_token, hash_password, verify_password
 from videodna.db import models as m
-from videodna.domain.enums import JobKind, JobStatus
-from videodna.jobs.service import claim_job, create_job, request_cancel
+from videodna.domain.enums import JobKind, JobStatus, ProjectStatus
+from videodna.jobs.service import (
+    STALE_AFTER,
+    claim_job,
+    create_job,
+    fail_stale_jobs,
+    request_cancel,
+)
+from videodna.media.ffmpeg import (
+    BUNDLED_FONT,
+    escape_filter_path,
+    ffprobe_json,
+    find_font_file,
+    run_ffmpeg,
+)
+from videodna.media.transcode import make_proxy
 from videodna.storage.s3 import S3Storage
 from videodna.storage.signing import InvalidToken, sign, verify
 
@@ -54,6 +70,34 @@ def test_job_creation_is_idempotent_and_claim_is_atomic(runtime):
         assert isinstance(job, m.AnalysisJob) and isinstance(other, m.GenerationJob)
     assert claim_job(runtime.session_factory, job.id) is True
     assert claim_job(runtime.session_factory, job.id) is False  # duplicated message = no-op
+
+
+def test_a_job_whose_worker_died_is_closed_instead_of_spinning_forever(runtime):
+    pid = _project(runtime)
+    with runtime.session_factory() as session:
+        project = session.get(m.Project, pid)
+        project.status = ProjectStatus.ANALYZING
+        dead, _ = create_job(session, project_id=pid, kind=JobKind.ANALYSIS, idempotency_key="d")
+        alive, _ = create_job(session, project_id=pid, kind=JobKind.PREVIEW, idempotency_key="a")
+        now = datetime.now(UTC)
+        dead.status, dead.heartbeat_at = (
+            JobStatus.ANALYZING,
+            now - STALE_AFTER - timedelta(seconds=1),
+        )
+        alive.status, alive.heartbeat_at = JobStatus.GENERATING, now - timedelta(seconds=10)
+        session.commit()
+
+        assert fail_stale_jobs(session, project_id=pid) == 1
+        session.commit()
+        assert dead.status == JobStatus.FAILED and dead.error_code == "JOB_INTERRUPTED"
+        assert "tentar de novo" in dead.message
+        assert alive.status == JobStatus.GENERATING
+        assert session.get(m.Project, pid).status == ProjectStatus.FAILED
+        # A retry is a new job, not the dead one handed back.
+        retry, created = create_job(
+            session, project_id=pid, kind=JobKind.ANALYSIS, idempotency_key="d"
+        )
+        assert created and retry.id != dead.id
 
 
 def test_cancelling_a_queued_job_closes_it(runtime):
@@ -332,3 +376,49 @@ def test_list_settings_accept_comma_separated_env(monkeypatch):
     settings = Settings()
     assert settings.cors_origins == ["http://localhost:3000", "https://studio.example.com"]
     assert settings.video_allowed_codecs == ["h264", "vp9"]
+
+
+def test_bundled_font_is_used_so_captions_never_silently_disappear():
+    assert BUNDLED_FONT.exists()
+    assert find_font_file() == BUNDLED_FONT
+
+
+@requires_ffmpeg
+def test_drawtext_font_path_survives_drive_letters_and_apostrophes(tmp_path):
+    # "C:" mimics a Windows drive letter; the rest, folder names users really have.
+    folder = tmp_path / "C:" / "D'Ávila [vídeos, 2026]; final"
+    folder.mkdir(parents=True)
+    font = folder / "font.ttf"
+    shutil.copy(BUNDLED_FONT, font)
+    out = tmp_path / "frame.png"
+    run_ffmpeg(
+        [
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=320x120:d=0.1",
+            "-vf",
+            f"drawtext=fontfile='{escape_filter_path(font)}':text='ok':fontcolor=white:fontsize=48",
+            "-frames:v",
+            "1",
+            str(out),
+        ]
+    )
+    assert out.stat().st_size > 0
+
+
+@requires_ffmpeg
+@pytest.mark.parametrize(
+    "size,resolution,expected",
+    [
+        ("640x360", 240, (426, 240)),  # landscape: the short side is the height
+        ("360x640", 240, (240, 426)),  # vertical phone video: the short side is the width
+        ("360x640", 720, (360, 640)),  # never upscale
+    ],
+)
+def test_resolution_classes_refer_to_the_short_side(tmp_path, size, resolution, expected):
+    src = tmp_path / "in.mp4"
+    run_ffmpeg(["-f", "lavfi", "-i", f"testsrc2=s={size}:d=0.5", "-pix_fmt", "yuv420p", str(src)])
+    out = make_proxy(src, tmp_path / "proxy.mp4", height=resolution)
+    stream = ffprobe_json(out)["streams"][0]
+    assert (stream["width"], stream["height"]) == expected

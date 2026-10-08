@@ -407,6 +407,15 @@ export function useRestoreVersion(id: string) {
   });
 }
 
+/** Cria um projeto a partir do vídeo de exemplo e já inicia a análise. */
+export function useCreateDemoProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fresh: boolean = false) => unwrap(api.POST("/projects/demo", { body: { fresh } })),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects }),
+  });
+}
+
 export function useDuplicateProject() {
   const qc = useQueryClient();
   return useMutation({

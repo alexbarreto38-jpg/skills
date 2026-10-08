@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FileVideo, ShieldCheck, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { DemoNotice } from "@/components/ui/demo-notice";
 import { Button, Progress, cx } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api";
@@ -92,6 +93,8 @@ export function UploadPanel({ projectId, onDone }: { projectId: string; onDone?:
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
       />
       {tooBig && <p className="text-xs text-bad">O arquivo excede o tamanho máximo permitido.</p>}
+
+      <DemoNotice variant="upload" />
 
       <label className="flex cursor-pointer gap-3 rounded-xl border border-line bg-panel-2 p-3 text-xs leading-relaxed text-muted">
         <input

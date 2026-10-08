@@ -8,7 +8,7 @@ generation, timeline splicing, QA and assembly end to end — for free.
 
 from __future__ import annotations
 
-from videodna.media.ffmpeg import escape_drawtext, find_font_file
+from videodna.media.ffmpeg import escape_drawtext, escape_filter_path, find_font_file
 from videodna.media.transcode import cut_segment, probe_duration
 from videodna.orchestrator.adapters.mock.base import MockMixin
 from videodna.orchestrator.adapters.mock.story import stable_noise
@@ -70,13 +70,13 @@ def build_filter(request: VideoEditRequest, provider: str) -> str:
         stage = "reparo" if request.repair_hint else "tentativa"
         badge = f"MOCK · {provider} · {request.capability.value} · {stage} {request.attempt + 1}"
         filters.append(
-            f"drawtext=fontfile='{font.as_posix()}':text='{escape_drawtext(badge)}':"
+            f"drawtext=fontfile={escape_filter_path(font)}:text='{escape_drawtext(badge)}':"
             "fontsize=h/30:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=6:x=10:y=10"
         )
         legend = " · ".join(e.label for e in request.edits)[:90]
         if legend:
             filters.append(
-                f"drawtext=fontfile='{font.as_posix()}':text='{escape_drawtext(legend)}':"
+                f"drawtext=fontfile={escape_filter_path(font)}:text='{escape_drawtext(legend)}':"
                 "fontsize=h/28:fontcolor=white:box=1:boxcolor=0x2f6fdb@0.6:boxborderw=6:"
                 "x=10:y=h-text_h-14"
             )

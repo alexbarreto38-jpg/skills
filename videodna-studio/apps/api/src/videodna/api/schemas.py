@@ -179,6 +179,19 @@ class ProjectOut(ApiModel):
     edit_count: int = 0
     total_cost: float = 0.0
     currency: str = "BRL"
+    is_demo: bool = False
+
+
+class DemoProjectRequest(ApiModel):
+    # True: start a new copy even if the user already has an example project.
+    fresh: bool = False
+
+
+class DemoProjectOut(ApiModel):
+    project: ProjectOut
+    job: JobOut | None = None
+    # True when the existing example project was reopened instead of created.
+    reused: bool = False
 
 
 # --- uploads ---------------------------------------------------------------------------

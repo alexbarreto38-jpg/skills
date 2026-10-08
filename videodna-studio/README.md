@@ -213,8 +213,12 @@ videodna-studio/
 
 ## Setup local (sem Docker)
 
+Para quem vai **desenvolver** (para só usar, o caminho é o [Início rápido](#início-rápido)).
+
 Pré-requisitos: **Python 3.11+** com [uv](https://docs.astral.sh/uv/), **Node 22+** com
-pnpm (`corepack enable`), **FFmpeg/FFprobe** no PATH.
+pnpm (`npm install -g pnpm@10.28.0` — o `corepack` não vem mais em todas as versões do Node)
+e **FFmpeg/FFprobe** no PATH. No Windows, use uma build GPL do FFmpeg, que inclui o `libx264`
+usado nos proxies e nas saídas; confira com `ffmpeg -hide_banner -encoders | findstr libx264`.
 
 ```sh
 cd videodna-studio
@@ -224,6 +228,9 @@ make install                       # uv sync + pnpm install
 ### Opção A — zero infraestrutura (SQLite, fila em thread, storage local)
 
 Bom para experimentar e desenvolver o frontend; não precisa de Postgres, Redis nem MinIO.
+A pasta `var/` é criada sozinha.
+
+Linux/macOS:
 
 ```sh
 cd apps/api
@@ -232,6 +239,21 @@ export DATABASE_URL=sqlite:///./var/videodna.db QUEUE_BACKEND=thread \
 uv run alembic upgrade head
 uv run uvicorn videodna.main:app --reload --port 8000
 ```
+
+Windows (PowerShell):
+
+```powershell
+cd apps\api
+$env:DATABASE_URL = "sqlite:///./var/videodna.db"
+$env:QUEUE_BACKEND = "thread"
+$env:STORAGE_BACKEND = "local"
+$env:REDIS_URL = ""
+uv run alembic upgrade head
+uv run uvicorn videodna.main:app --reload --port 8000
+```
+
+As variáveis `$env:` valem até fechar aquela janela do PowerShell — abra uma janela nova
+para voltar à configuração padrão.
 
 Em outro terminal: `pnpm --filter @videodna/web dev` e abra http://localhost:3000.
 
@@ -248,7 +270,22 @@ make web                           # terminal 3
 
 `make help` lista todos os atalhos (`seed`, `test`, `lint`, `typecheck`, `openapi`, `check`…).
 `make infra-s3` sobe também o MinIO (portas 9000/9001) para testar `STORAGE_BACKEND=s3`.
-No Windows não há `make`: rode os comandos equivalentes que estão no `Makefile`.
+
+No Windows não há `make`; os equivalentes da opção B no PowerShell:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres redis
+Copy-Item .env.example apps\api\.env
+cd apps\api
+uv run alembic upgrade head
+uv run uvicorn videodna.main:app --reload --port 8000   # janela 1
+uv run videodna worker                                  # janela 2
+pnpm --filter @videodna/web dev                         # janela 3 (na pasta videodna-studio)
+```
+
+Ao editar o `.env` no Windows, salve como UTF-8 (o Bloco de Notas faz isso por padrão). Não
+crie o arquivo com `echo ... > .env` no Windows PowerShell 5.1: ele grava em UTF-16 e o
+arquivo deixa de ser lido.
 
 ## Docker
 

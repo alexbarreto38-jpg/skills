@@ -5,7 +5,16 @@ import uuid
 from fastapi import APIRouter, Depends, Response
 
 from videodna.api import schemas as s
-from videodna.api.deps import DbDep, RuntimeDep, UserDep, get_owned_project, rate_limit
+from videodna.api.deps import (
+    DbDep,
+    RuntimeDep,
+    UserDep,
+    expensive_rate_limit,
+    get_owned_project,
+    rate_limit,
+)
+from videodna.jobs.queue import get_queue
+from videodna.services import demo
 from videodna.services import projects as svc
 
 router = APIRouter(prefix="/projects", tags=["projects"], dependencies=[Depends(rate_limit)])
@@ -18,6 +27,30 @@ def create_project(
     project = svc.create_project(db, user, req)
     db.commit()
     return svc.project_out(db, runtime, project)
+
+
+@router.post(
+    "/demo",
+    response_model=s.DemoProjectOut,
+    status_code=201,
+    dependencies=[Depends(expensive_rate_limit)],
+    summary="Criar um projeto de exemplo (vídeo de demonstração) e iniciar a análise",
+)
+def create_demo_project(
+    db: DbDep, runtime: RuntimeDep, user: UserDep, req: s.DemoProjectRequest | None = None
+) -> s.DemoProjectOut:
+    project, job, reused = demo.create_demo_project(
+        db, runtime, user, fresh=bool(req and req.fresh)
+    )
+    db.commit()
+    if job is not None:
+        get_queue().enqueue(job.id)
+        db.refresh(job)
+    return s.DemoProjectOut(
+        project=svc.project_out(db, runtime, project),
+        job=s.JobOut.model_validate(job) if job else None,
+        reused=reused,
+    )
 
 
 @router.get("", response_model=list[s.ProjectOut], summary="Listar projetos")

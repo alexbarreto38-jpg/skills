@@ -17,7 +17,7 @@ from videodna.api.deps import (
 )
 from videodna.db import models as m
 from videodna.domain.enums import OutputKind
-from videodna.errors import NotFound
+from videodna.errors import JOB_GONE, NotFound
 from videodna.jobs.queue import get_queue
 from videodna.services.generation import service as svc
 
@@ -108,7 +108,7 @@ def list_outputs(
 def get_output(output_id: uuid.UUID, db: DbDep, runtime: RuntimeDep, user: UserDep) -> s.OutputOut:
     row = db.get(m.GenerationOutput, output_id)
     if row is None:
-        raise NotFound("Resultado")
+        raise NotFound("Este vídeo gerado não existe mais. Veja as outras versões ou gere de novo.")
     get_owned_project(db, user, row.project_id)
     return svc.output_out(runtime, row)
 
@@ -117,7 +117,7 @@ def get_output(output_id: uuid.UUID, db: DbDep, runtime: RuntimeDep, user: UserD
 def job_qa(job_id: uuid.UUID, db: DbDep, user: UserDep) -> list[s.QAReportOut]:
     job = db.get(m.Job, job_id)
     if job is None:
-        raise NotFound("Tarefa")
+        raise NotFound(JOB_GONE)
     get_owned_project(db, user, job.project_id)
     reports = db.scalars(
         select(m.QAReport)

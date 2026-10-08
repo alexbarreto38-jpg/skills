@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Dna, LogIn } from "lucide-react";
+import { Activity, Dna, FlaskConical, LogIn } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/primitives";
@@ -19,13 +19,30 @@ export function Logo() {
   );
 }
 
+/** "Modo demonstração": click to see what is simulated. */
 export function MockBadge() {
   const { data } = useAppConfig();
   if (!data?.mockMode) return null;
   return (
-    <Badge tone="warn" className="uppercase tracking-wide">
-      Mock mode
-    </Badge>
+    <details className="group relative">
+      <summary className="list-none cursor-pointer [&::-webkit-details-marker]:hidden">
+        <Badge tone="warn" className="gap-1">
+          <FlaskConical className="size-3" /> Modo demonstração
+        </Badge>
+      </summary>
+      <div className="absolute left-0 top-8 z-40 w-80 rounded-xl border border-line-strong bg-panel-2 p-4 text-xs leading-relaxed text-muted shadow-2xl">
+        <p className="mb-2 text-sm font-medium text-fg">Você está testando sem IA paga</p>
+        <ul className="list-disc space-y-1.5 pl-4">
+          <li>Os cortes, quadros e cores do vídeo são medidos de verdade.</li>
+          <li>
+            A parte de IA é simulada: a análise sempre conta a mesma história de exemplo (um menino, um copo e a
+            mãe).
+          </li>
+          <li>Ao gerar, o sistema desenha marcações coloridas sobre o vídeo original para mostrar onde cada mudança aconteceria.</li>
+          <li>Todos os valores em R$ são fictícios. Nada é cobrado.</li>
+        </ul>
+      </div>
+    </details>
   );
 }
 

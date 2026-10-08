@@ -132,6 +132,14 @@ export const GENERATION_STAGES: { id: string; label: string }[] = [
   { id: "assemble", label: "Montagem final" },
 ];
 
+/** Why a video was refused, and what to do about it (by the error code stored on the source video). */
+export const REJECT_REASON: Record<string, string> = {
+  VIDEO_TOO_LONG: "O vídeo passa do limite de duração. Corte um trecho menor e envie de novo.",
+  UNSUPPORTED_MEDIA: "Este formato não é aceito. Envie um vídeo MP4, MOV, WebM ou MKV.",
+  INVALID_VIDEO: "Não conseguimos abrir este arquivo como vídeo. Ele pode estar corrompido — tente exportá-lo de novo.",
+  FILE_TOO_LARGE: "O arquivo é grande demais. Envie uma versão menor (ou mais curta) do vídeo.",
+};
+
 export function label(map: Record<string, string>, key: string | null | undefined): string {
   if (!key) return "";
   return map[key] ?? key;

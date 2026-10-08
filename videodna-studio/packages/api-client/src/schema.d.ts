@@ -141,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/projects/demo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Criar um projeto de exemplo (vídeo de demonstração) e iniciar a análise */
+        post: operations["create_demo_project_projects_demo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -1057,6 +1074,24 @@ export interface components {
             /** Secondsgenerated */
             secondsGenerated: number;
         };
+        /** DemoProjectOut */
+        DemoProjectOut: {
+            project: components["schemas"]["ProjectOut"];
+            job: components["schemas"]["JobOut"] | null;
+            /**
+             * Reused
+             * @default false
+             */
+            reused: boolean;
+        };
+        /** DemoProjectRequest */
+        DemoProjectRequest: {
+            /**
+             * Fresh
+             * @default false
+             */
+            fresh?: boolean;
+        };
         /** Dependency */
         Dependency: {
             type: components["schemas"]["DependencyType"];
@@ -1859,6 +1894,11 @@ export interface components {
              * @default BRL
              */
             currency: string;
+            /**
+             * Isdemo
+             * @default false
+             */
+            isDemo: boolean;
         };
         /** ProjectSettings */
         "ProjectSettings-Input": {
@@ -2709,6 +2749,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_demo_project_projects_demo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DemoProjectRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoProjectOut"];
                 };
             };
             /** @description Validation Error */

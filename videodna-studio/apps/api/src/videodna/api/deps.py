@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from videodna.api.ratelimit import RateLimiter
 from videodna.api.security import decode_access_token
 from videodna.db import models as m
-from videodna.errors import AppError, ErrorCode, NotFound
+from videodna.errors import PROJECT_GONE, AppError, ErrorCode, NotFound
 from videodna.runtime import Runtime, get_runtime
 
 
@@ -68,7 +68,10 @@ UserDep = Annotated[m.User, Depends(current_user)]
 
 def require_admin(user: UserDep) -> m.User:
     if not user.is_admin:
-        raise AppError(ErrorCode.FORBIDDEN)
+        raise AppError(
+            ErrorCode.FORBIDDEN,
+            "Esta área é só para administradores. Volte para a lista de projetos.",
+        )
     return user
 
 
@@ -94,5 +97,5 @@ def get_owned_project(db: Session, user: m.User, project_id: uuid.UUID) -> m.Pro
     missing ones (404, not 403)."""
     project = db.get(m.Project, project_id)
     if project is None or project.owner_id != user.id:
-        raise NotFound("Projeto")
+        raise NotFound(PROJECT_GONE)
     return project

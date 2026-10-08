@@ -1,10 +1,11 @@
 "use client";
 
 import type { Project } from "@videodna/api-client";
-import { Clapperboard, Copy, Film, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Clapperboard, Copy, Film, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 
 import { AppHeader } from "@/components/app-header";
+import { DemoButton } from "@/components/project/demo-button";
 import { Badge, Button, EmptyState, Spinner, statusTone } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api";
@@ -28,8 +29,9 @@ function ProjectCard({ project }: { project: Project }) {
               <Film className="size-8" />
             </div>
           )}
-          <div className="absolute left-2 top-2">
+          <div className="absolute left-2 top-2 flex gap-1">
             <Badge tone={statusTone(project.status)}>{label(PROJECT_STATUS, project.status)}</Badge>
+            {project.isDemo && <Badge tone="info">Exemplo</Badge>}
           </div>
           {project.sourceVideo?.durationSec ? (
             <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[11px]">
@@ -82,6 +84,32 @@ function ProjectCard({ project }: { project: Project }) {
   );
 }
 
+const STEPS = [
+  { title: "Envie um vídeo", text: "Ou use o vídeo de exemplo. Você confirma que tem direito de usá-lo." },
+  { title: "A IA separa o vídeo", text: "Cenas, personagens, roupas, objetos e cenário viram itens clicáveis." },
+  { title: "Escolha o que mudar", text: "Clique num item e escolha uma opção: \u201ccabelo cacheado\u201d, \u201ccopo \u2192 prato\u201d\u2026" },
+  { title: "Revise e gere", text: "Veja o que cada mudança afeta e quanto custa antes de gerar. Depois, compare." },
+];
+
+/** Os quatro passos do produto, para quem chega pela primeira vez. */
+function HowItWorks() {
+  return (
+    <section aria-label="Como funciona" className="mb-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {STEPS.map((step, i) => (
+        <div key={step.title} className="panel p-4">
+          <p className="mb-1 flex items-center gap-2 text-sm font-medium">
+            <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-xs text-accent">
+              {i + 1}
+            </span>
+            {step.title}
+          </p>
+          <p className="text-xs leading-relaxed text-muted">{step.text}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export default function Home() {
   const { data: projects, isLoading, error } = useProjects();
   return (
@@ -105,7 +133,16 @@ export default function Home() {
             O VideoDNA Studio transforma seu vídeo em elementos editáveis — personagens, roupas, objetos,
             cenário — preservando história, ritmo, movimento e câmera. Clique, escolha, visualize e gere.
           </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <DemoButton />
+            <Link href="/projects/new">
+              <Button variant="outline" icon={<Upload className="size-4" />}>
+                Usar meu vídeo
+              </Button>
+            </Link>
+          </div>
         </section>
+        <HowItWorks />
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-muted">Seus projetos</h2>
         </div>
@@ -118,12 +155,18 @@ export default function Home() {
         ) : !projects?.length ? (
           <div className="panel">
             <EmptyState icon={<Clapperboard className="size-10" />} title="Nenhum projeto ainda">
-              <p className="mb-4">Envie um vídeo de referência que você tem autorização para transformar.</p>
-              <Link href="/projects/new">
-                <Button variant="primary" icon={<Plus className="size-4" />}>
-                  Criar o primeiro projeto
-                </Button>
-              </Link>
+              <p className="mb-4 max-w-md">
+                Comece pelo exemplo: um vídeo curto já pronto (um menino, um copo e a mãe) para você ver
+                o caminho inteiro — análise, edição, plano e resultado — sem precisar enviar nada.
+              </p>
+              <div className="flex flex-wrap justify-center gap-2">
+                <DemoButton />
+                <Link href="/projects/new">
+                  <Button variant="outline" icon={<Plus className="size-4" />}>
+                    Enviar meu vídeo
+                  </Button>
+                </Link>
+              </div>
             </EmptyState>
           </div>
         ) : (

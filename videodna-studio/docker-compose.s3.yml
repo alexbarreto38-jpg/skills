@@ -28,7 +28,8 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-videodna-secret}
       # Browser uploads PUT parts straight to MinIO and must read the ETag header.
       MINIO_API_CORS_ALLOW_ORIGIN: ${CORS_ORIGINS:-http://localhost:3000}
-    ports: ["9000:9000", "9001:9001"]
+    restart: unless-stopped
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
     volumes: [miniodata:/data]
 
   api:

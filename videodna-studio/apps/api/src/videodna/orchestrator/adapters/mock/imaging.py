@@ -13,7 +13,7 @@ from __future__ import annotations
 import colorsys
 from xml.sax.saxutils import escape
 
-from videodna.media.ffmpeg import escape_drawtext, find_font_file, run_ffmpeg
+from videodna.media.ffmpeg import escape_drawtext, escape_filter_path, find_font_file, run_ffmpeg
 from videodna.media.transcode import probe_video_size
 from videodna.orchestrator.adapters.mock.base import MockMixin
 from videodna.orchestrator.adapters.mock.story import stable_noise
@@ -242,7 +242,7 @@ class MockImageGenerator(MockMixin, ImageGeneratorProvider):
         font = find_font_file()
         if font:
             filters.append(
-                f"drawtext=fontfile='{font.as_posix()}':text='{escape_drawtext('PREVIEW · ' + request.label)}':"
+                f"drawtext=fontfile={escape_filter_path(font)}:text='{escape_drawtext('PREVIEW · ' + request.label)}':"
                 "fontsize=h/22:fontcolor=white:box=1:boxcolor=black@0.55:boxborderw=8:x=12:y=12"
             )
         request.output_path.parent.mkdir(parents=True, exist_ok=True)

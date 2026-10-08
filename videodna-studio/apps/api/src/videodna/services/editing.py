@@ -29,7 +29,7 @@ from videodna.domain.operations import (
     validate_operation,
 )
 from videodna.domain.video_dna import VideoDNA
-from videodna.errors import AppError, ErrorCode, NotFound
+from videodna.errors import ELEMENT_GONE, SUGGESTION_GONE, AppError, ErrorCode, NotFound
 from videodna.services.analysis.persistence import dna_from_json
 from videodna.services.projects import settings_of
 
@@ -108,7 +108,7 @@ def _resolve_entity_key(db: Session, analysis: m.VideoAnalysis, req: s.EditCreat
     if req.entity_id is not None:
         row = db.get(m.Entity, req.entity_id)
         if row is None or row.analysis_id != analysis.id:
-            raise NotFound("Elemento")
+            raise NotFound(ELEMENT_GONE)
         return row.key
     return req.entity_key
 
@@ -173,7 +173,7 @@ def create_edit(
     if req.suggestion_id is not None:
         suggestion = db.get(m.Suggestion, req.suggestion_id)
         if suggestion is None or suggestion.project_id != project.id:
-            raise NotFound("Sugestão")
+            raise NotFound(SUGGESTION_GONE)
     after = apply_operations(original, [*map(to_spec, ops), spec])
     impact = analyze_operation(original, after, spec, settings_of(project).locks)
 
@@ -240,7 +240,7 @@ def redo(db: Session, project: m.Project) -> m.EditOperation | None:
 def delete_edit(db: Session, project: m.Project, edit_id: uuid.UUID) -> m.EditOperation:
     row = db.get(m.EditOperation, edit_id)
     if row is None or row.project_id != project.id:
-        raise NotFound("Alteração")
+        raise NotFound("Esta mudança já foi removida. Atualize a página (F5).")
     row.state = EditState.DISCARDED
     # Edits made to an element this operation added cannot outlive it.
     added_key = added_entity_key(to_spec(row))

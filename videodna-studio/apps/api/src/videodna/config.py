@@ -23,7 +23,13 @@ _INSECURE_DEFAULT_SECRET = "dev-insecure-change-me-not-for-production"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        # Not the locale default: on Windows that is cp1252 and garbles accents.
+        env_file_encoding="utf-8",
+        extra="ignore",
+        case_sensitive=False,
+    )
 
     # --- runtime -------------------------------------------------------------
     app_env: Literal["development", "test", "production"] = "development"

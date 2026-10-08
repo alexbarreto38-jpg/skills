@@ -90,7 +90,8 @@ class TechnicalQAProvider(QAProvider):
             )
 
         if request.expected_height:
-            res_ok = abs(height - request.expected_height) <= 2
+            # "720p" is the short side, so vertical videos are checked the same way.
+            res_ok = abs(min(width, height) - request.expected_height) <= 2
             checks.append(QACheck(name="resolução", passed=res_ok, detail=f"{width}x{height}"))
             if not res_ok:
                 issues.append(

@@ -26,6 +26,18 @@ class FFmpegError(AppError):
         self.detail = message
 
 
+def _run_tool(cmd: list[str], **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+    """subprocess.run for ffmpeg/ffprobe, with a useful error when the binary is missing."""
+    try:
+        return subprocess.run(cmd, **kwargs)  # noqa: S603 - fixed binary, list args
+    except (FileNotFoundError, PermissionError) as exc:
+        raise AppError(
+            ErrorCode.MEDIA_PROCESSING_FAILED,
+            f"Não encontrei o programa {cmd[0]!r}, que processa os vídeos. Instale o FFmpeg "
+            "(ele traz o ffmpeg e o ffprobe) ou ajuste FFMPEG_BIN / FFPROBE_BIN.",
+        ) from exc
+
+
 def ffmpeg_available() -> bool:
     settings = get_settings()
     return bool(shutil.which(settings.ffmpeg_bin) and shutil.which(settings.ffprobe_bin))
@@ -43,7 +55,7 @@ def run_ffmpeg(
     if input_bytes is not None:
         cmd.remove("-nostdin")
     try:
-        proc = subprocess.run(  # noqa: S603 - fixed binary, list args
+        proc = _run_tool(
             cmd,
             capture_output=True,
             timeout=timeout or settings.ffmpeg_timeout_sec,
@@ -75,9 +87,7 @@ def ffprobe_json(path: Path, extra: list[str] | None = None) -> dict[str, Any]:
         str(path),
     ]
     try:
-        proc = subprocess.run(  # noqa: S603
-            cmd, capture_output=True, timeout=120, check=False
-        )
+        proc = _run_tool(cmd, capture_output=True, timeout=120, check=False)
     except subprocess.TimeoutExpired as exc:
         raise FFmpegError("ffprobe timed out", code=ErrorCode.INVALID_VIDEO) from exc
     if proc.returncode != 0:
@@ -109,7 +119,7 @@ def keyframe_times(path: Path, limit: int = 2000) -> list[float]:
         "json",
         str(path),
     ]
-    proc = subprocess.run(cmd, capture_output=True, timeout=300, check=False)  # noqa: S603
+    proc = _run_tool(cmd, capture_output=True, timeout=300, check=False)
     if proc.returncode != 0:
         return []
     frames = json.loads(proc.stdout or b"{}").get("frames", [])
@@ -121,10 +131,15 @@ def keyframe_times(path: Path, limit: int = 2000) -> list[float]:
     return times
 
 
+BUNDLED_FONT = Path(__file__).resolve().parent.parent / "assets" / "fonts" / "DejaVuSans-Bold.ttf"
+
+
 def find_font_file() -> Path | None:
     settings = get_settings()
     if settings.mock_font_file and settings.mock_font_file.exists():
         return settings.mock_font_file
+    if BUNDLED_FONT.exists():
+        return BUNDLED_FONT
     for candidate in (
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -136,13 +151,30 @@ def find_font_file() -> Path | None:
             return Path(candidate)
     fc_match = shutil.which("fc-match")
     if fc_match:
-        proc = subprocess.run(  # noqa: S603
+        proc = _run_tool(
             [fc_match, "-f", "%{file}", "sans"], capture_output=True, timeout=10, check=False
         )
         path = Path(proc.stdout.decode().strip())
         if proc.returncode == 0 and path.exists():
             return path
     return None
+
+
+def escape_filter_path(path: Path) -> str:
+    """A file path as an *unquoted* option value inside a filtergraph.
+
+    FFmpeg unescapes twice: the filtergraph parser (special: \\ ' [ ] , ;) and
+    then the filter's option parser (special: \\ ' :). A Windows drive letter
+    (`C:/...`) or a name like `D'Ávila` breaks the filter unless both levels are
+    escaped, innermost first.
+    """
+    value = path.as_posix().replace("\\", "/")
+    for special in "\\':":
+        value = value.replace(special, "\\" + special)
+    escaped = ""
+    for ch in value:
+        escaped += "\\" + ch if ch in "\\'[],;" else ch
+    return escaped
 
 
 def escape_drawtext(text: str) -> str:

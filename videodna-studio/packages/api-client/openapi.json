@@ -267,6 +267,54 @@
         }
       }
     },
+    "/projects/demo": {
+      "post": {
+        "tags": [
+          "projects"
+        ],
+        "summary": "Criar um projeto de exemplo (vídeo de demonstração) e iniciar a análise",
+        "operationId": "create_demo_project_projects_demo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DemoProjectRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Req"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoProjectOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/projects/{project_id}": {
       "get": {
         "tags": [
@@ -3243,6 +3291,46 @@
         ],
         "title": "CostSummaryOut"
       },
+      "DemoProjectOut": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectOut"
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "job",
+          "reused"
+        ],
+        "title": "DemoProjectOut"
+      },
+      "DemoProjectRequest": {
+        "properties": {
+          "fresh": {
+            "type": "boolean",
+            "title": "Fresh",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "DemoProjectRequest"
+      },
       "Dependency": {
         "properties": {
           "type": {
@@ -5483,6 +5571,11 @@
             "type": "string",
             "title": "Currency",
             "default": "BRL"
+          },
+          "isDemo": {
+            "type": "boolean",
+            "title": "Isdemo",
+            "default": false
           }
         },
         "type": "object",
@@ -5500,7 +5593,8 @@
           "latestOutputId",
           "editCount",
           "totalCost",
-          "currency"
+          "currency",
+          "isDemo"
         ],
         "title": "ProjectOut"
       },

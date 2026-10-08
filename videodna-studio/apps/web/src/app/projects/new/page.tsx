@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AppHeader } from "@/components/app-header";
+import { DemoButton } from "@/components/project/demo-button";
 import { UploadPanel } from "@/components/project/upload-panel";
 import { Button, Input, Segmented } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
@@ -47,6 +48,14 @@ export default function NewProjectPage() {
         <p className="mt-1 text-sm text-muted">
           Dê um nome, escolha o modo de qualidade padrão e envie o vídeo de referência.
         </p>
+
+        <div className="panel mt-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <p className="flex-1 text-xs leading-relaxed text-muted">
+            <span className="block text-sm font-medium text-fg">Primeira vez aqui?</span>
+            Use o vídeo de exemplo e veja o caminho inteiro sem precisar enviar nada.
+          </p>
+          <DemoButton variant="secondary" size="sm" />
+        </div>
 
         <div className="panel mt-6 space-y-5 p-5">
           <div className="space-y-2">

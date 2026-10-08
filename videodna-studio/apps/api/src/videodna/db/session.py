@@ -5,17 +5,28 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from videodna.config import get_settings
+
+
+def ensure_sqlite_dir(url: str) -> None:
+    """A fresh clone has no ./var yet, and SQLite will not create the folder itself."""
+    if not url.startswith("sqlite"):
+        return
+    database = make_url(url).database
+    if database and database != ":memory:":
+        Path(database).parent.mkdir(parents=True, exist_ok=True)
 
 
 def build_engine(url: str, echo: bool = False) -> Engine:
     kwargs: dict = {"echo": echo, "future": True}
     if url.startswith("sqlite"):
         kwargs["connect_args"] = {"check_same_thread": False}
+        ensure_sqlite_dir(url)
     else:
         kwargs.update(pool_pre_ping=True, pool_size=10, max_overflow=20)
     engine = create_engine(url, **kwargs)

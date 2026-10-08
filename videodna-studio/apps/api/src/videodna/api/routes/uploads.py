@@ -14,13 +14,15 @@ from videodna.api.deps import (
     get_owned_project,
     rate_limit,
 )
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import UPLOAD_GONE, AppError, ErrorCode
 from videodna.jobs.queue import get_queue
 from videodna.services import uploads as svc
 from videodna.services.projects import source_out
 from videodna.storage.signing import InvalidToken, verify
 
 router = APIRouter(tags=["uploads"])
+
+_LINK_EXPIRED = "O link de envio expirou. Escolha o arquivo e envie de novo."
 
 
 @router.post(
@@ -142,9 +144,9 @@ async def put_local_part(
     try:
         payload = verify(token, runtime.settings.signing_secret.get_secret_value())
     except InvalidToken as exc:
-        raise AppError(ErrorCode.FORBIDDEN, "URL de upload inválida ou expirada.") from exc
+        raise AppError(ErrorCode.FORBIDDEN, _LINK_EXPIRED) from exc
     if payload.get("u") != upload_id or payload.get("n") != part_number:
-        raise AppError(ErrorCode.FORBIDDEN, "URL de upload inválida.")
+        raise AppError(ErrorCode.FORBIDDEN, _LINK_EXPIRED)
     body = await request.body()
     if len(body) > max(runtime.settings.upload_part_size * 2, 32 * 1024 * 1024):
         raise AppError(ErrorCode.FILE_TOO_LARGE)
@@ -155,5 +157,5 @@ async def put_local_part(
     try:
         etag = runtime.storage.write_part(upload_id, part_number, body)
     except FileNotFoundError as exc:
-        raise AppError(ErrorCode.NOT_FOUND, "Upload não encontrado.") from exc
+        raise AppError(ErrorCode.NOT_FOUND, UPLOAD_GONE) from exc
     return Response(status_code=200, headers={"ETag": f'"{etag}"'})

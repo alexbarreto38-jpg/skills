@@ -11,12 +11,15 @@ import { EntityInspector } from "@/components/editor/entity-inspector";
 import { Player } from "@/components/editor/player";
 import { ProjectPanel } from "@/components/editor/project-panel";
 import { Timeline } from "@/components/editor/timeline";
-import { Badge, Button, IconButton, Kbd, Spinner, statusTone } from "@/components/ui/primitives";
+import { ProjectSteps } from "@/components/project/project-steps";
+import { Money } from "@/components/ui/money";
+import { Button, IconButton, Spinner, cx } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
 import { errorMessage } from "@/lib/api";
 import { useEditor } from "@/lib/editor-store";
 import { formatMoney } from "@/lib/format";
-import { PROJECT_STATUS, QUALITY_MODE, label } from "@/lib/labels";
+import { useHint } from "@/lib/hints";
+import { QUALITY_MODE } from "@/lib/labels";
 import {
   useCostEstimate,
   useEditHistory,
@@ -30,23 +33,25 @@ import {
 function CostPill({ project }: { project: Project }) {
   const mode = project.settings.qualityMode ?? "BALANCED";
   const { data, isFetching } = useCostEstimate(project.id, mode, project.editCount);
-  if (!project.editCount) {
-    return <span className="text-xs text-faint">Sem alterações</span>;
-  }
+  if (!project.editCount) return null;
   const plan = data?.plan as { estimatedCostWithRepairs?: number; summary?: { affectedShots: number } } | undefined;
   return (
     <span
       className="flex items-center gap-2 rounded-lg border border-line bg-panel-2 px-3 py-1.5 text-xs"
-      title={`Modo ${QUALITY_MODE[mode]?.label ?? mode} · até ${formatMoney(plan?.estimatedCostWithRepairs, data?.currency)} com reparos`}
+      title={`Modo ${QUALITY_MODE[mode]?.label ?? mode} · pode chegar a ${formatMoney(plan?.estimatedCostWithRepairs, data?.currency)} se for preciso refazer trechos`}
     >
       <Wallet className="size-3.5 text-cyan" />
       {isFetching && !data ? (
         <Spinner className="size-3" />
       ) : (
         <>
-          <span className="text-muted">Estimativa:</span>
-          <span className="font-semibold">{formatMoney(data?.estimatedCost, data?.currency)}</span>
-          {plan?.summary && <span className="text-faint">· {plan.summary.affectedShots} shots</span>}
+          <span className="text-muted">Custo estimado:</span>
+          <Money className="font-semibold" value={data?.estimatedCost} currency={data?.currency} />
+          {plan?.summary && (
+            <span className="text-faint">
+              · {plan.summary.affectedShots} {plan.summary.affectedShots === 1 ? "cena" : "cenas"}
+            </span>
+          )}
         </>
       )}
     </span>
@@ -63,6 +68,11 @@ export function Editor({ project }: { project: Project }) {
   const lastGeneration = generations.data?.find((j) => j.status === "COMPLETED");
   const qa = useQaReports(lastGeneration?.id);
   const { selectedKey, reset } = useEditor();
+  // After the first change, point at the next step until the user gets there.
+  const goReview = useHint("go-review", project.editCount > 0);
+  const job = project.activeJob;
+  const generating =
+    job && job.kind === "GENERATION" && !["COMPLETED", "FAILED", "CANCELLED"].includes(job.status) ? job : null;
 
   useEffect(() => reset, [reset, id]);
 
@@ -98,10 +108,11 @@ export function Editor({ project }: { project: Project }) {
         <Link href="/" className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted hover:bg-panel-3 hover:text-fg">
           <ArrowLeft className="size-3.5" /> Projetos
         </Link>
-        <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold">{project.name}</h1>
+        <div className="min-w-0 max-w-56">
+          <h1 className="truncate text-sm font-semibold" title={project.name}>
+            {project.name}
+          </h1>
         </div>
-        <Badge tone={statusTone(project.status)}>{label(PROJECT_STATUS, project.status)}</Badge>
         <MockBadge />
         <div className="ml-2 flex items-center gap-0.5">
           <IconButton
@@ -119,10 +130,19 @@ export function Editor({ project }: { project: Project }) {
             <Redo2 className="size-4" />
           </IconButton>
         </div>
-        <div className="flex-1" />
-        <span className="hidden items-center gap-1 text-[11px] text-faint xl:flex">
-          <Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> desfazer
-        </span>
+        <div className="flex flex-1 justify-center">
+          <ProjectSteps project={project} route="project" compact className="hidden lg:block" />
+        </div>
+        {generating && (
+          <Link
+            href={`/projects/${id}/jobs/${generating.id}`}
+            className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs hover:bg-accent/20"
+            title="Mudanças feitas agora entram só na próxima geração"
+          >
+            <Spinner className="size-3" />
+            Gerando seu vídeo… {Math.round(generating.progress ?? 0)}% · Ver progresso
+          </Link>
+        )}
         <CostPill project={project} />
         {project.latestOutputId && (
           <Link href={`/projects/${id}/result`}>
@@ -131,8 +151,21 @@ export function Editor({ project }: { project: Project }) {
             </Button>
           </Link>
         )}
-        <Link href={`/projects/${id}/review`}>
-          <Button size="sm" variant="primary" icon={<Sparkles className="size-3.5" />} disabled={!project.editCount}>
+        <Link
+          href={`/projects/${id}/review`}
+          onClick={(e) => {
+            if (!project.editCount) e.preventDefault();
+            else goReview.dismiss();
+          }}
+          title={project.editCount ? "Ver o que vai mudar e quanto custa, antes de gerar" : "Faça pelo menos uma alteração para continuar."}
+        >
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<Sparkles className="size-3.5" />}
+            disabled={!project.editCount}
+            className={cx(goReview.visible && "animate-pulse ring-2 ring-accent ring-offset-2 ring-offset-panel")}
+          >
             Revisar e gerar
           </Button>
         </Link>
@@ -140,10 +173,15 @@ export function Editor({ project }: { project: Project }) {
 
       <div className="grid min-h-0 grid-cols-[264px_1fr_380px]">
         <aside className="min-h-0 overflow-y-auto border-r border-line bg-panel">
-          <DnaTree dna={dna} />
+          <DnaTree dna={dna} editCount={project.editCount} isDemo={project.isDemo} />
         </aside>
         <main className="min-h-0 bg-bg">
-          <Player src={project.sourceVideo?.proxyUrl} poster={project.sourceVideo?.posterUrl} dna={dna} />
+          <Player
+            src={project.sourceVideo?.proxyUrl}
+            poster={project.sourceVideo?.posterUrl}
+            dna={dna}
+            showClickHint={project.editCount === 0 && !selectedKey}
+          />
         </main>
         <aside className="min-h-0 overflow-y-auto border-l border-line bg-panel">
           {selected && row ? (

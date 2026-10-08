@@ -19,7 +19,10 @@ const useToasts = create<{ toasts: Toast[]; push: (t: Omit<Toast, "id">) => void
     push: (t) => {
       const id = Date.now() + Math.random();
       set((s) => ({ toasts: [...s.toasts.slice(-3), { ...t, id }] }));
-      setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 5000);
+      // An error is often the only explanation of what happened: it stays until closed.
+      if (t.tone !== "bad") {
+        setTimeout(() => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })), 8000);
+      }
     },
     dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
   }),
@@ -40,6 +43,7 @@ export function ToastViewport() {
         return (
           <div
             key={t.id}
+            role={t.tone === "bad" ? "alert" : "status"}
             className="pointer-events-auto flex gap-3 rounded-xl border border-line bg-panel-2 p-3 shadow-[var(--shadow-panel)]"
           >
             <Icon className={cx("mt-0.5 size-4 shrink-0", t.tone === "ok" ? "text-ok" : t.tone === "bad" ? "text-bad" : "text-info")} />

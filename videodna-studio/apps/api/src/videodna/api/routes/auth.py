@@ -19,7 +19,10 @@ def register(
     _limiter().hit(f"auth:{request.client.host if request.client else 'na'}", 20)
     email = req.email.lower()
     if db.scalar(select(m.User).where(m.User.email == email)):
-        raise AppError(ErrorCode.CONFLICT, "E-mail já cadastrado.")
+        raise AppError(
+            ErrorCode.CONFLICT,
+            "Já existe uma conta com este e-mail. Clique em “Entrar” e use sua senha.",
+        )
     user = m.User(
         email=email, password_hash=hash_password(req.password), display_name=req.display_name
     )
@@ -36,7 +39,9 @@ def login(req: s.LoginRequest, db: DbDep, runtime: RuntimeDep, request: Request)
     _limiter().hit(f"auth:{request.client.host if request.client else 'na'}", 20)
     user = db.scalar(select(m.User).where(m.User.email == req.email.lower()))
     if user is None or not verify_password(req.password, user.password_hash):
-        raise AppError(ErrorCode.UNAUTHORIZED, "E-mail ou senha inválidos.")
+        raise AppError(
+            ErrorCode.UNAUTHORIZED, "E-mail ou senha não conferem. Confira e tente de novo."
+        )
     return s.TokenResponse(
         access_token=create_access_token(user.id, runtime.settings),
         user=s.UserOut.model_validate(user),

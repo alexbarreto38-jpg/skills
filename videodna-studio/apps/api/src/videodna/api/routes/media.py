@@ -10,7 +10,7 @@ from fastapi import APIRouter
 from fastapi.responses import FileResponse
 
 from videodna.api.deps import RuntimeDep
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import FILE_GONE, AppError, ErrorCode
 from videodna.storage.local import LocalStorage
 from videodna.storage.signing import InvalidToken, verify
 
@@ -21,14 +21,17 @@ router = APIRouter(tags=["media"])
 def get_media(token: str, runtime: RuntimeDep) -> FileResponse:
     storage = runtime.storage
     if not isinstance(storage, LocalStorage):
-        raise AppError(ErrorCode.NOT_FOUND)
+        raise AppError(ErrorCode.NOT_FOUND, FILE_GONE)
     try:
         payload = verify(token, runtime.settings.signing_secret.get_secret_value())
     except InvalidToken as exc:
-        raise AppError(ErrorCode.FORBIDDEN, "Link de mídia inválido ou expirado.") from exc
+        raise AppError(
+            ErrorCode.FORBIDDEN,
+            "O link deste vídeo expirou. Atualize a página (F5) para criar um novo.",
+        ) from exc
     key = payload["k"]
     if not storage.exists(key):
-        raise AppError(ErrorCode.NOT_FOUND)
+        raise AppError(ErrorCode.NOT_FOUND, FILE_GONE)
     path = storage.path_for(key)
     content_type = (
         payload.get("ct") or mimetypes.guess_type(path.name)[0] or "application/octet-stream"

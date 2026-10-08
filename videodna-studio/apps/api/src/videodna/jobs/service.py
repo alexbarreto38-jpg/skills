@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -18,7 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from videodna.db import models as m
-from videodna.domain.enums import TERMINAL_JOB_STATUSES, JobKind, JobStatus
+from videodna.domain.enums import TERMINAL_JOB_STATUSES, JobKind, JobStatus, ProjectStatus
 from videodna.errors import ErrorCode
 
 SessionFactory = Callable[[], Session]
@@ -48,7 +48,12 @@ def create_job(
         )
     )
     if existing is not None:
-        return existing, False
+        if existing.status not in (JobStatus.FAILED, JobStatus.CANCELLED):
+            return existing, False
+        # A failed or cancelled run is history, not a reason to refuse a retry:
+        # move it off the key so the retry gets a fresh job.
+        existing.idempotency_key = f"{idempotency_key[:180]}#{existing.id.hex[:12]}"
+        session.flush()
     cls = m.JOB_CLASS_BY_KIND[kind]
     job = cls(
         project_id=project_id,
@@ -228,3 +233,48 @@ class JobReporter:
                 data={"errorCode": error_code.value} if error_code else None,
             )
             session.commit()
+
+
+# A running job's worker refreshes heartbeat_at at least every HEARTBEAT_EVERY
+# (jobs/runner.py). Silence for STALE_AFTER means the worker died mid-job:
+# Docker stopped, the computer slept or restarted.
+HEARTBEAT_EVERY = timedelta(seconds=20)
+STALE_AFTER = timedelta(minutes=2)
+INTERRUPTED_MESSAGE = (
+    "O processamento foi interrompido (o VideoDNA foi fechado ou o computador reiniciou). "
+    "Clique em tentar de novo."
+)
+
+
+def fail_stale_jobs(
+    session: Session, *, project_id: uuid.UUID | None = None, now: datetime | None = None
+) -> int:
+    """Close jobs whose worker is gone, so the screen offers a retry instead of
+    spinning forever. Returns how many were closed; the caller commits."""
+    now = now or datetime.now(UTC)
+    query = select(m.Job).where(
+        m.Job.status.not_in([*TERMINAL_JOB_STATUSES, JobStatus.QUEUED]),
+        m.Job.heartbeat_at < now - STALE_AFTER,
+    )
+    if project_id is not None:
+        query = query.where(m.Job.project_id == project_id)
+    jobs = list(session.scalars(query))
+    for job in jobs:
+        job.status = JobStatus.FAILED
+        job.finished_at = now
+        job.message = INTERRUPTED_MESSAGE
+        job.error_code = ErrorCode.JOB_INTERRUPTED.value
+        job.error_message = INTERRUPTED_MESSAGE
+        _append_event(session, job, INTERRUPTED_MESSAGE, level="error")
+        project = session.get(m.Project, job.project_id)
+        if project is not None and project.status in (
+            ProjectStatus.ANALYZING,
+            ProjectStatus.GENERATING,
+            ProjectStatus.UPLOADED,
+        ):
+            project.status = (
+                ProjectStatus.READY if project.current_analysis_id else ProjectStatus.FAILED
+            )
+    if jobs:
+        session.flush()
+    return len(jobs)

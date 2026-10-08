@@ -214,21 +214,47 @@ def simple_upload(
         tmp_path = Path(tmp.name)
     try:
         _validate_declared(runtime, content_type, size, rights_confirmed)
-        source_id = uuid.uuid4()
-        key = source_key(project.id, source_id, filename)
-        runtime.storage.put_file(key, tmp_path, content_type)
+        return register_file(
+            db,
+            runtime,
+            user,
+            project,
+            path=tmp_path,
+            filename=filename,
+            content_type=content_type,
+            rights_statement=RIGHTS_STATEMENT,
+            analyze=analyze,
+        )
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def register_file(
+    db: Session,
+    runtime: Runtime,
+    user: m.User,
+    project: m.Project,
+    *,
+    path: Path,
+    filename: str,
+    content_type: str,
+    rights_statement: str,
+    analyze: bool,
+) -> tuple[m.SourceVideo, m.Job, bool]:
+    """Store a local file as the project's source video and queue its processing."""
+    source_id = uuid.uuid4()
+    key = source_key(project.id, source_id, filename)
+    runtime.storage.put_file(key, path, content_type)
     source = m.SourceVideo(
         id=source_id,
         project_id=project.id,
         original_filename=Path(filename).name[:255],
         content_type=content_type,
-        size_bytes=size,
+        size_bytes=path.stat().st_size,
         storage_key=key,
         status=SourceVideoStatus.UPLOADED,
         rights_confirmed_at=datetime.now(UTC),
-        rights_statement=RIGHTS_STATEMENT,
+        rights_statement=rights_statement,
     )
     db.add(source)
     project.status = ProjectStatus.UPLOADED

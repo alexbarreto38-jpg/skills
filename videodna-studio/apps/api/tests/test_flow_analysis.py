@@ -11,6 +11,8 @@ from helpers import (
     requires_ffmpeg,
 )
 
+from videodna.storage import signing
+
 pytestmark = requires_ffmpeg
 
 
@@ -174,3 +176,67 @@ def test_reanalysis_of_identical_content_is_reused(client, sample_video):
         else []
     )
     assert isinstance(events, list)
+
+
+def test_demo_project_runs_the_whole_analysis_without_an_upload(client, settings):
+    created = ok(client.post("/projects/demo"), 201)
+    project = created["project"]
+    assert project["isDemo"] is True
+    assert project["name"] == "Exemplo — O menino e o copo"
+    assert created["job"]["kind"] == "ANALYSIS"
+
+    project = ok(client.get(f"/projects/{project['id']}"))
+    assert project["status"] == "READY"
+    assert project["sourceVideo"]["originalFilename"] == "exemplo-menino-e-o-copo.mp4"
+    dna = ok(client.get(f"/projects/{project['id']}/video-dna"))["dna"]
+    assert len(dna["shots"]) == 6
+    assert {e["id"] for e in dna["entities"]} >= {"CHARACTER_001", "OBJECT_001"}
+
+    # A second click reopens the same example instead of piling up copies.
+    reopened = ok(client.post("/projects/demo"), 201)
+    assert reopened["reused"] is True and reopened["project"]["id"] == project["id"]
+    assert reopened["job"] is None
+
+    # "Começar do zero" makes a new copy; the sample video itself is generated once.
+    cached = list((settings.work_dir / "samples").glob("*.mp4"))
+    assert len(cached) == 1
+    fresh = ok(client.post("/projects/demo", json={"fresh": True}), 201)
+    assert fresh["reused"] is False and fresh["project"]["id"] != project["id"]
+    assert list((settings.work_dir / "samples").glob("*.mp4")) == cached
+
+
+def test_demo_project_is_refused_outside_mock_mode(client, settings):
+    settings.ai_mock_mode = False
+    try:
+        r = client.post("/projects/demo")
+    finally:
+        settings.ai_mock_mode = True
+    assert r.status_code == 409
+    assert "modo demonstração" in r.json()["error"]["message"]
+
+
+def test_missing_ffmpeg_fails_clearly_and_stays_retryable(client, sample_video, settings):
+    project = create_project(client)
+    settings.ffprobe_bin = "ffprobe-que-nao-existe"
+    try:
+        done = multipart_upload(client, project["id"], sample_video)
+        job = ok(client.get(f"/jobs/{done['job']['id']}"))
+    finally:
+        settings.ffprobe_bin = "ffprobe"
+    assert job["status"] == "FAILED"
+    assert "Instale o FFmpeg" in job["message"]
+    project = ok(client.get(f"/projects/{project['id']}"))
+    assert project["sourceVideo"]["status"] == "UPLOADED"
+
+    retry = ok(client.post(f"/projects/{project['id']}/analyze", json={}), 202)
+    assert ok(client.get(f"/jobs/{retry['id']}"))["status"] == "COMPLETED"
+
+
+def test_media_urls_stay_stable_across_refetches(client, sample_video, monkeypatch):
+    # A new signed URL on every refetch would reload the editor's video at 0:00.
+    project = analyzed_project(client, sample_video)
+    real_time = signing.time.time
+    monkeypatch.setattr(signing.time, "time", lambda: real_time() + 30)  # a later refetch
+    again = ok(client.get(f"/projects/{project['id']}"))
+    assert again["sourceVideo"]["proxyUrl"] == project["sourceVideo"]["proxyUrl"]
+    assert client.get(again["sourceVideo"]["proxyUrl"]).status_code == 200

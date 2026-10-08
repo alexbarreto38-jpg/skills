@@ -22,8 +22,8 @@ from videodna.api import schemas as s
 from videodna.api.deps import DbDep, RuntimeDep, UserDep, get_owned_project
 from videodna.db import models as m
 from videodna.domain.enums import TERMINAL_JOB_STATUSES, JobKind
-from videodna.errors import NotFound
-from videodna.jobs.service import request_cancel
+from videodna.errors import JOB_GONE, NotFound
+from videodna.jobs.service import fail_stale_jobs, request_cancel
 
 router = APIRouter(tags=["jobs"])
 
@@ -34,14 +34,18 @@ _HEARTBEAT_SEC = 15.0
 def _owned_job(db, user, job_id: uuid.UUID) -> m.Job:
     job = db.get(m.Job, job_id)
     if job is None:
-        raise NotFound("Tarefa")
+        raise NotFound(JOB_GONE)
     get_owned_project(db, user, job.project_id)
     return job
 
 
 @router.get("/jobs/{job_id}", response_model=s.JobOut, summary="Status do job")
 def get_job(job_id: uuid.UUID, db: DbDep, user: UserDep) -> s.JobOut:
-    return s.JobOut.model_validate(_owned_job(db, user, job_id))
+    job = _owned_job(db, user, job_id)
+    if fail_stale_jobs(db, project_id=job.project_id):
+        db.commit()
+        db.refresh(job)
+    return s.JobOut.model_validate(job)
 
 
 @router.get(

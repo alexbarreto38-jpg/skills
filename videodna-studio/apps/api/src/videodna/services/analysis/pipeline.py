@@ -123,7 +123,11 @@ def ensure_ingested(
     except AppError as exc:
         with ctx.session() as session:
             row = session.get(m.SourceVideo, source.id)
-            row.status = SourceVideoStatus.REJECTED
+            if exc.code == ErrorCode.MEDIA_PROCESSING_FAILED:
+                # Our tooling failed (e.g. FFmpeg missing), not the file: keep it retryable.
+                row.status = SourceVideoStatus.UPLOADED
+            else:
+                row.status = SourceVideoStatus.REJECTED
             row.error_code = exc.code.value
             session.commit()
         raise

@@ -24,7 +24,7 @@ from videodna.domain.edit_options import categories_for
 from videodna.domain.enums import EntityType
 from videodna.domain.settings import ProjectLocks
 from videodna.domain.video_dna import Entity, VideoDNA
-from videodna.errors import AppError, ErrorCode
+from videodna.errors import ELEMENT_GONE, AppError, ErrorCode
 from videodna.logging_setup import get_logger
 from videodna.media.hashing import sha256_text
 from videodna.orchestrator.capabilities import Capability
@@ -123,13 +123,14 @@ def get_suggestions(
 ) -> tuple[list[m.Suggestion], bool]:
     entity = current.entity(entity_key)
     if entity is None:
-        raise AppError(ErrorCode.NOT_FOUND, "Elemento não encontrado.")
+        raise AppError(ErrorCode.NOT_FOUND, ELEMENT_GONE)
     allowed = {c.id for c in categories_for(entity)}
     if category not in allowed:
         raise AppError(
             ErrorCode.VALIDATION_ERROR,
-            f"Categoria '{category}' não se aplica a este elemento.",
-            details={"allowed": sorted(allowed)},
+            "Este tipo de opção não vale para este elemento. "
+            "Escolha uma das opções mostradas para ele.",
+            details={"category": category, "allowed": sorted(allowed)},
         )
     ctx = build_context(current, entity, settings_of(project).locks, _history_labels(db, project))
     digest = context_hash(category, ctx)

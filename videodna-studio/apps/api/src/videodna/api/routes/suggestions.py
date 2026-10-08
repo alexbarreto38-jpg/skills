@@ -16,7 +16,7 @@ from videodna.api.deps import (
 )
 from videodna.db import models as m
 from videodna.domain.enums import EditSource
-from videodna.errors import AppError, ErrorCode, NotFound
+from videodna.errors import ELEMENT_GONE, SUGGESTION_GONE, AppError, ErrorCode, NotFound
 from videodna.jobs.queue import get_queue
 from videodna.runtime import Runtime
 from videodna.services import editing
@@ -37,10 +37,10 @@ def _out(runtime: Runtime, row: m.Suggestion) -> s.SuggestionOut:
 def _entity(db, user, entity_id: uuid.UUID) -> tuple[m.Entity, m.Project]:
     row = db.get(m.Entity, entity_id)
     if row is None:
-        raise NotFound("Elemento")
+        raise NotFound(ELEMENT_GONE)
     project = get_owned_project(db, user, row.project_id)
     if row.analysis_id != project.current_analysis_id:
-        raise NotFound("Elemento")
+        raise NotFound(ELEMENT_GONE)
     return row, project
 
 
@@ -88,7 +88,11 @@ def more_suggestions(
     _, _, current, _ = editing.current_state(db, project)
     page = svc.next_page(db, project, row.key, category)
     if page > 20:
-        raise AppError(ErrorCode.CONFLICT, "Limite de opções atingido para este elemento.")
+        raise AppError(
+            ErrorCode.CONFLICT,
+            "Já mostramos todas as opções que temos para este elemento. "
+            "Escolha uma delas ou escreva o que quer mudar.",
+        )
     items, cached = svc.get_suggestions(
         db, runtime, user, project, current, row.key, category, page
     )
@@ -105,10 +109,10 @@ def more_suggestions(
 def _suggestion(db, user, suggestion_id: uuid.UUID) -> tuple[m.Suggestion, m.Project]:
     row = db.get(m.Suggestion, suggestion_id)
     if row is None:
-        raise NotFound("Sugestão")
+        raise NotFound(SUGGESTION_GONE)
     project = get_owned_project(db, user, row.project_id)
     if row.analysis_id != project.current_analysis_id:
-        raise NotFound("Sugestão")
+        raise NotFound(SUGGESTION_GONE)
     return row, project
 
 
@@ -160,7 +164,11 @@ def preview_suggestion(
     req: s.PreviewRequest | None = None,
 ) -> s.JobOut:
     if not runtime.flags.is_enabled("frame_previews"):
-        raise AppError(ErrorCode.FORBIDDEN, "Previews de frame estão desativados.")
+        raise AppError(
+            ErrorCode.FORBIDDEN,
+            "A prévia numa foto está desligada nesta instalação. "
+            "Aplique a mudança e veja o resultado em “Revisar e gerar”.",
+        )
     row, project = _suggestion(db, user, suggestion_id)
     job, created = create_preview_job(db, user, project, row, req.shot_key if req else None)
     db.commit()

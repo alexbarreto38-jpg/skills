@@ -11,7 +11,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from videodna.media.ffmpeg import escape_drawtext, find_font_file, run_ffmpeg
+from videodna.media.ffmpeg import escape_drawtext, escape_filter_path, find_font_file, run_ffmpeg
 from videodna.media.transcode import concat_segments
 
 SAMPLE_SHOTS: list[tuple[float, str, str, int]] = [
@@ -46,7 +46,7 @@ def generate_sample_video(
             ]
             if font:
                 filters.append(
-                    f"drawtext=fontfile='{font.as_posix()}':text='{escape_drawtext(caption)}':"
+                    f"drawtext=fontfile={escape_filter_path(font)}:text='{escape_drawtext(caption)}':"
                     "fontsize=44:fontcolor=white:borderw=3:bordercolor=black@0.6:"
                     "x=(w-text_w)/2:y=h*0.1"
                 )

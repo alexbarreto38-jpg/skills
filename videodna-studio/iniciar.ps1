@@ -96,8 +96,13 @@ function Get-SourceRevision {
     $rev = & git -C $Root rev-parse HEAD 2> $null
     if ($LASTEXITCODE -ne 0 -or -not $rev) { return '' }
     $dirty = & git -C $Root status --porcelain -- . 2> $null
-    if ($dirty) { return "$rev-modificado" }
-    return [string]$rev
+    if (-not $dirty) { return [string]$rev }
+    # Local edits: fingerprint them, so each new edit still triggers a rebuild.
+    $diff = (& git -C $Root diff HEAD -- . 2> $null | Out-String) + ($dirty | Out-String)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $bytes = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($diff))
+    $hex = -join ($bytes[0..5] | ForEach-Object { $_.ToString('x2') })
+    return "$rev-modificado-$hex"
 }
 
 function Get-ImageRevision([string]$Image) {

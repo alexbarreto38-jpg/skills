@@ -219,7 +219,9 @@ def build_plan(
     by_op = {imp.operation_id: imp for imp in impacts}
     generative = [spec for spec in specs if is_generative(spec)]
 
-    source_height = original.technical.height
+    # Resolution classes ("720p", "1080p") refer to the short side: a vertical
+    # 1080x1920 phone video is 1080p.
+    source_height = min(original.technical.width, original.technical.height)
     wanted = settings.proxy_height if render_kind == RenderKind.PREVIEW else settings.final_height
     out_height = target_height(source_height, wanted)
     warnings: list[PlanWarning] = []

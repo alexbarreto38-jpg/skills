@@ -56,8 +56,20 @@ export function streamJob(
   return streamJobEvents({ ...options, jobId, onEvent, signal, after });
 }
 
+export const OFFLINE_MESSAGE =
+  "Não consegui me conectar ao VideoDNA. O servidor pode estar desligado ou ainda iniciando — espere alguns segundos e tente de novo.";
+
+/** True when the API could not be reached at all (server down, starting, or no network). */
+export function isOffline(error: unknown): boolean {
+  // A gateway error without our JSON body (no requestId) means the API itself is not answering.
+  if (error instanceof ApiError) return [502, 503, 504].includes(error.status) && !error.requestId;
+  // fetch() rejects with a TypeError ("Failed to fetch", "NetworkError…") when nothing answers.
+  return error instanceof TypeError;
+}
+
 export function errorMessage(error: unknown): string {
+  if (isOffline(error)) return OFFLINE_MESSAGE;
   if (error instanceof ApiError) return error.message;
   if (error instanceof Error) return error.message;
-  return "Algo deu errado.";
+  return "Algo deu errado. Tente de novo.";
 }

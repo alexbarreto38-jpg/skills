@@ -10,7 +10,18 @@ import { useEditor } from "@/lib/editor-store";
 import { formatTime } from "@/lib/format";
 
 /** Center panel: proxy video + clickable overlay of tracked elements. */
-export function Player({ src, poster, dna }: { src?: string | null; poster?: string | null; dna?: VideoDNA }) {
+export function Player({
+  src,
+  poster,
+  dna,
+  showClickHint = false,
+}: {
+  src?: string | null;
+  poster?: string | null;
+  dna?: VideoDNA;
+  /** First-time cue that the boxes over the video are clickable. */
+  showClickHint?: boolean;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(dna?.technical.durationSec ?? 0);
@@ -39,7 +50,27 @@ export function Player({ src, poster, dna }: { src?: string | null; poster?: str
     [dna, currentTime, showBoxes, selectedKey],
   );
   const fps = dna?.technical.fps ?? 25;
-  const aspect = dna ? `${dna.technical.width} / ${dna.technical.height}` : "16 / 9";
+  const ratio = dna && dna.technical.height ? dna.technical.width / dna.technical.height : 16 / 9;
+
+  // The frame must match the video exactly: the boxes are positioned in % of the
+  // frame, so any letterboxing (a vertical phone video in a wide panel) would put
+  // them on the black bars. CSS alone cannot fit both width and height here.
+  const stage = useRef<HTMLDivElement>(null);
+  const [frame, setFrame] = useState<{ w: number; h: number } | null>(null);
+  useEffect(() => {
+    const el = stage.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      const padding = 32; // p-4 on both sides
+      const w = el.clientWidth - padding;
+      const h = el.clientHeight - padding;
+      if (w <= 0 || h <= 0) return;
+      const width = Math.min(w, h * ratio);
+      setFrame({ w: width, h: width / ratio });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ratio]);
 
   function step(frames: number) {
     if (!video.current) return;
@@ -50,8 +81,11 @@ export function Player({ src, poster, dna }: { src?: string | null; poster?: str
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <div className="relative max-h-full w-full max-w-full overflow-hidden rounded-xl bg-black shadow-[var(--shadow-panel)]" style={{ aspectRatio: aspect, maxWidth: "100%", maxHeight: "100%" }}>
+      <div ref={stage} className="flex min-h-0 flex-1 items-center justify-center p-4">
+        <div
+          className="relative overflow-hidden rounded-xl bg-black shadow-[var(--shadow-panel)]"
+          style={frame ? { width: frame.w, height: frame.h } : { aspectRatio: ratio, width: "100%" }}
+        >
           {src ? (
             <video
               ref={video}
@@ -109,6 +143,11 @@ export function Player({ src, poster, dna }: { src?: string | null; poster?: str
               );
             })}
           </div>
+          {showClickHint && showBoxes && (
+            <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/75 px-3 py-1 text-xs text-white">
+              As caixas sobre o vídeo também são clicáveis
+            </span>
+          )}
         </div>
       </div>
       <div className="flex items-center gap-2 border-t border-line px-4 py-2">
@@ -128,7 +167,6 @@ export function Player({ src, poster, dna }: { src?: string | null; poster?: str
         <span className="ml-2 font-mono text-xs text-muted">
           {formatTime(currentTime)} <span className="text-faint">/ {formatTime(duration)}</span>
         </span>
-        <span className="font-mono text-[11px] text-faint">#{Math.round(currentTime * fps)}</span>
         <div className="flex-1" />
         <IconButton label={showBoxes ? "Ocultar elementos" : "Mostrar elementos"} onClick={toggleBoxes} active={showBoxes}>
           {showBoxes ? <Eye className="size-4" /> : <EyeOff className="size-4" />}

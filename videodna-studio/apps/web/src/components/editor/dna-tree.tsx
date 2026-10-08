@@ -5,6 +5,7 @@ import { ChevronRight, CircleHelp, Clapperboard, Music2, Type, Zap } from "lucid
 import { useMemo, useState } from "react";
 
 import { EntityIcon } from "@/components/editor/entity-icon";
+import { Hint } from "@/components/ui/hint";
 import { SectionTitle, cx } from "@/components/ui/primitives";
 import { type TreeNode, buildTree, isModified, shotsForEntity } from "@/lib/dna";
 import { useEditor } from "@/lib/editor-store";
@@ -56,7 +57,11 @@ function NodeRow({ node, dna, depth = 0 }: { node: TreeNode; dna: VideoDNA; dept
         <span className="min-w-0 flex-1 truncate" title={hint ? `${hint}: ${e.label}` : e.label}>
           {e.label}
         </span>
-        {e.needsReview && <CircleHelp className="size-3.5 shrink-0 text-warn" aria-label="Precisa de revisão" />}
+        {e.needsReview && (
+          <span title="A IA não tem certeza do que é este item: clique para confirmar">
+            <CircleHelp className="size-3.5 shrink-0 text-warn" aria-label="Confirmar o que é" />
+          </span>
+        )}
         {e.importance === "ESSENTIAL" && (
           <span className="rounded bg-accent-soft px-1 text-[9px] font-semibold text-[#c9bcff]" title="Essencial para a história">
             E
@@ -75,11 +80,16 @@ function NodeRow({ node, dna, depth = 0 }: { node: TreeNode; dna: VideoDNA; dept
   );
 }
 
-export function DnaTree({ dna }: { dna: VideoDNA }) {
+export function DnaTree({ dna, editCount = 0, isDemo = false }: { dna: VideoDNA; editCount?: number; isDemo?: boolean }) {
   const tree = useMemo(() => buildTree(dna), [dna]);
-  const { seek } = useEditor();
+  const { seek, selectedKey } = useEditor();
   return (
     <div className="space-y-5 p-3">
+      <Hint id="pick-element" active={editCount === 0 && !selectedKey}>
+        {isDemo
+          ? "Comece por aqui: clique em um elemento, como “Menino” ou “Copo de vidro”, para ver o que dá para mudar."
+          : "Comece por aqui: clique em um personagem, objeto ou no cenário para ver o que dá para mudar."}
+      </Hint>
       <section>
         <SectionTitle>Personagens</SectionTitle>
         <ul>

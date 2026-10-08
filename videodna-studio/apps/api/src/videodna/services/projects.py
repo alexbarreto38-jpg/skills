@@ -22,6 +22,7 @@ from videodna.domain.enums import (
 )
 from videodna.domain.settings import ProjectSettings
 from videodna.errors import AppError, ErrorCode
+from videodna.jobs.service import fail_stale_jobs
 from videodna.logging_setup import get_logger
 from videodna.runtime import Runtime
 from videodna.services.analysis.persistence import dna_from_json, persist_dna
@@ -78,6 +79,9 @@ def source_out(runtime: Runtime, source: m.SourceVideo) -> s.SourceVideoOut:
 
 
 def project_out(db: Session, runtime: Runtime, project: m.Project) -> s.ProjectOut:
+    # A job whose worker died (Docker stopped, PC slept) must not spin forever.
+    if fail_stale_jobs(db, project_id=project.id):
+        db.commit()
     source = latest_source(db, project.id)
     analysis = (
         db.get(m.VideoAnalysis, project.current_analysis_id)
@@ -130,6 +134,7 @@ def project_out(db: Session, runtime: Runtime, project: m.Project) -> s.ProjectO
         edit_count=edit_count or 0,
         total_cost=round(float(total or Decimal(0)), 2),
         currency=runtime.settings.cost_currency,
+        is_demo=project.is_demo,
     )
 
 
@@ -197,6 +202,7 @@ def duplicate_project(db: Session, runtime: Runtime, user: m.User, project: m.Pr
         settings=dict(project.settings or {}),
         status=ProjectStatus.READY,
         duplicated_from_id=project.id,
+        is_demo=project.is_demo,
     )
     db.add(clone)
     db.flush()
