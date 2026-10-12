@@ -1,0 +1,988 @@
+<title>Pesquisa Ativos-Go</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap">
+<style>
+  /* Layout: trilho de 1080px com coluna de leitura de ~68ch; navegação por seções fixa no topo; figuras e tabelas ocupam o trilho inteiro */
+  :root {
+    --bg: #F3F5F6;
+    --surface: #FFFFFF;
+    --sunk: #E6ECEE;
+    --ink: #111A20;
+    --muted: #55636E;
+    --line: #D3DCE0;
+    --accent: #0B7468;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #D3EDE9;
+    --risk: #B43A10;
+    --risk-soft: #F8E2D6;
+    --warn: #865700;
+    --warn-soft: #F5EACB;
+    --ok: #17703A;
+    --ok-soft: #DAEEE0;
+    --font-display: "Unbounded", "Arial Black", system-ui, sans-serif;
+    --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --rail: 1080px;
+    --read: 68ch;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0C1215;
+      --surface: #131C21;
+      --sunk: #1B262C;
+      --ink: #E6EDF0;
+      --muted: #98A7B1;
+      --line: #27353C;
+      --accent: #3BC4B3;
+      --accent-ink: #06201C;
+      --accent-soft: #10332F;
+      --risk: #F2875B;
+      --risk-soft: #3A1E13;
+      --warn: #E3B54F;
+      --warn-soft: #33290F;
+      --ok: #5FD08A;
+      --ok-soft: #12301E;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0C1215;
+    --surface: #131C21;
+    --sunk: #1B262C;
+    --ink: #E6EDF0;
+    --muted: #98A7B1;
+    --line: #27353C;
+    --accent: #3BC4B3;
+    --accent-ink: #06201C;
+    --accent-soft: #10332F;
+    --risk: #F2875B;
+    --risk-soft: #3A1E13;
+    --warn: #E3B54F;
+    --warn-soft: #33290F;
+    --ok: #5FD08A;
+    --ok-soft: #12301E;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--rail); margin-inline: auto; padding-inline: 20px; }
+  .read { max-width: var(--read); }
+  h1, h2, h3 { text-wrap: balance; margin: 0; }
+  h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.01em; }
+  h1 { font-size: clamp(30px, 5.6vw, 54px); line-height: 1.08; }
+  h2 { font-size: clamp(23px, 3.4vw, 32px); line-height: 1.15; }
+  h3 { font-size: 18px; line-height: 1.3; font-weight: 700; }
+  p { margin: 0; }
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  strong { font-weight: 700; }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Topo */
+  .masthead { padding-block: 28px 8px; }
+  .masthead .wrap { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; }
+  .brand span { color: var(--accent); }
+
+  /* Navegação */
+  .nav {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-scroll { overflow-x: auto; scrollbar-width: none; }
+  .nav-scroll::-webkit-scrollbar { display: none; }
+  .nav ul { list-style: none; margin: 0; padding: 10px 0; display: flex; gap: 6px; width: max-content; }
+  .nav a {
+    display: block;
+    padding: 6px 12px;
+    border-radius: 999px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .nav a:hover { color: var(--ink); background: var(--sunk); }
+  .nav a.on { color: var(--accent-ink); background: var(--accent); }
+
+  /* Abertura */
+  .hero { padding-block: 40px 24px; display: grid; gap: 18px; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 62ch; }
+
+  /* Linha do tempo da garantia */
+  .figure {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: grid;
+    gap: 14px;
+  }
+  .figure-title { font-weight: 700; font-size: 17px; }
+  .figure-note { font-size: 13px; color: var(--muted); }
+  .tl { position: relative; height: 104px; margin-inline: 2px; }
+  .tl-track {
+    position: absolute; left: 0; right: 0; top: 56px; height: 16px;
+    background: var(--sunk); border-radius: 4px; overflow: hidden;
+  }
+  .tl-b7 {
+    position: absolute; left: 0; top: 0; bottom: 0; width: calc(7 / 120 * 100%);
+    background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px);
+  }
+  .tl-b4 {
+    position: absolute; left: 0; top: 0; bottom: 0; width: calc(4 / 120 * 100%);
+    background: var(--accent); border-right: 2px solid var(--surface);
+  }
+  .tl-mark { position: absolute; bottom: 32px; border-left: 2px solid var(--risk); }
+  .tl-mark span {
+    position: absolute; top: -2px; left: 6px; white-space: nowrap;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--ink);
+  }
+  .tl-mark::after {
+    content: ""; position: absolute; left: -6px; bottom: -4px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--risk); box-shadow: 0 0 0 2px var(--surface);
+    bottom: 3px;
+  }
+  .tl-mark.end { border-left: 0; border-right: 2px solid var(--risk); }
+  .tl-mark.end span { left: auto; right: 6px; }
+  .tl-mark.end::after { left: auto; right: -6px; }
+  .tl-axis { position: absolute; left: 0; right: 0; top: 80px; height: 20px; }
+  .tl-axis span {
+    position: absolute; top: 0; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 11px; color: var(--muted); white-space: nowrap;
+  }
+  .tl-axis span:first-child { transform: none; }
+  .tl-axis span:last-child { transform: translateX(-100%); }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .sw-solid { background: var(--accent); }
+  .sw-hatch { background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px); outline: 1px solid var(--accent); outline-offset: -1px; }
+  .sw-dot { width: 10px !important; height: 10px !important; border-radius: 50% !important; background: var(--risk); }
+
+  /* Resumo */
+  .summary { display: grid; gap: 10px; counter-reset: s; padding: 0; margin: 0; list-style: none; }
+  .summary li {
+    display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start;
+    padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  }
+  .summary li::before {
+    counter-increment: s; content: counter(s);
+    font-family: var(--font-display); font-weight: 600; font-size: 15px;
+    width: 30px; height: 30px; display: grid; place-items: center;
+    border-radius: 50%; background: var(--accent-soft); color: var(--accent);
+  }
+
+  /* Seções */
+  section { padding-block: 56px 8px; }
+  .sec-head { display: grid; gap: 10px; margin-bottom: 24px; }
+  .sec-head p { color: var(--muted); font-size: 17px; }
+  .stack { display: grid; gap: 18px; }
+  .stack > *, .hero > *, .panel > *, .figure > * { min-width: 0; }
+  .cols { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .cols > * { min-width: 0; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; align-content: start; }
+  .panel ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+  .panel p, .panel li { font-size: 15px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+
+  /* Passos */
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); counter-reset: st; }
+  .steps li { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 16px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+  .steps li::before { counter-increment: st; content: "Passo " counter(st); font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+  .steps li.danger { border-color: var(--risk); background: var(--risk-soft); }
+  .steps li.danger::before { color: var(--risk); }
+  .steps p { font-size: 15px; }
+  .quote { font-style: italic; }
+
+  /* Tabelas */
+  .table-box { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--sunk); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td:first-child { font-weight: 700; white-space: nowrap; }
+  .wide-table { min-width: 640px; }
+
+  /* Selos de status */
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 700; white-space: nowrap; line-height: 1.5;
+  }
+  .chip::before { font-family: var(--font-mono); font-weight: 600; }
+  .c-ok { background: var(--ok-soft); color: var(--ok); }
+  .c-ok::before { content: "✓"; }
+  .c-warn { background: var(--warn-soft); color: var(--warn); }
+  .c-warn::before { content: "!"; }
+  .c-risk { background: var(--risk-soft); color: var(--risk); }
+  .c-risk::before { content: "×"; }
+  .c-info { background: var(--accent-soft); color: var(--accent); }
+  .c-info::before { content: "→"; }
+
+  /* Gráficos de barra */
+  .bars { display: grid; gap: 10px; }
+  .bar-row { display: grid; grid-template-columns: minmax(84px, 120px) 1fr auto; gap: 12px; align-items: center; }
+  .bar-name { font-weight: 700; font-size: 14.5px; }
+  .bar-track { position: relative; height: 22px; border-left: 1px solid var(--line); }
+  .bar-track::before, .bar-track::after { content: ""; position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
+  .bar-track::before { left: 50%; }
+  .bar-track::after { left: 100%; }
+  .bar { position: absolute; left: 0; top: 3px; bottom: 3px; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .bar-row:hover .bar { filter: brightness(1.12); }
+  .bar-val { font-family: var(--font-mono); font-weight: 600; font-size: 14px; min-width: 3.5ch; text-align: right; }
+  .bar-scale { display: grid; grid-template-columns: minmax(84px, 120px) 1fr auto; gap: 12px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .bar-scale div { position: relative; height: 14px; }
+  .bar-scale div span { position: absolute; top: 0; }
+  .bar-scale div span:nth-child(1) { left: 0; }
+  .bar-scale div span:nth-child(2) { left: 50%; transform: translateX(-50%); }
+  .bar-scale div span:nth-child(3) { right: 0; }
+  .bar-scale .pad { min-width: 3.5ch; }
+
+  /* Abas */
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab {
+    font: inherit; font-weight: 700; font-size: 14px; cursor: pointer;
+    padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--muted);
+  }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+  /* Catálogo */
+  .products { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+  .product { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+  .product-top { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+  .product h3 { font-size: 16.5px; }
+  .meta { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 14px; }
+  .meta dt { color: var(--muted); }
+  .meta dd { margin: 0; }
+
+  .timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+  .timeline li { display: grid; grid-template-columns: 120px 1fr; gap: 14px; padding-block: 12px; border-top: 1px solid var(--line); }
+  .timeline li:first-child { border-top: 0; }
+  .when { font-family: var(--font-mono); font-weight: 600; font-size: 13px; color: var(--accent); padding-top: 2px; }
+
+  /* Simulador */
+  .calc { display: grid; gap: 16px; }
+  .calc-input { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .calc-input label { font-weight: 700; }
+  .money { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding-inline: 10px; }
+  .money span { font-family: var(--font-mono); color: var(--muted); font-size: 14px; }
+  .money input { font: inherit; font-family: var(--font-mono); font-size: 18px; font-weight: 600; width: 7ch; padding: 8px 6px; border: 0; background: transparent; color: var(--ink); }
+  .money input:focus-visible { outline: none; }
+  .money:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .preset { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+  .preset:hover { color: var(--ink); }
+  .calc-out { display: grid; gap: 8px; }
+  .calc-row { display: grid; grid-template-columns: minmax(150px, 260px) 1fr auto; gap: 12px; align-items: center; font-size: 14px; }
+  .calc-row .bar-track { height: 18px; }
+  .calc-row .cost { font-family: var(--font-mono); font-weight: 600; text-align: right; min-width: 11ch; }
+  .calc-row .cost small { color: var(--muted); font-weight: 500; }
+  .calc-ref { padding: 12px 14px; border-radius: 8px; background: var(--risk-soft); font-size: 14.5px; }
+
+  /* Fluxo do golpe */
+  .flow { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); counter-reset: fl; }
+  .flow li { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 4px; align-content: start; font-size: 14.5px; min-width: 0; }
+  .flow li::before { counter-increment: fl; content: counter(fl); font-family: var(--font-display); font-weight: 600; color: var(--risk); font-size: 18px; }
+  .flow li:last-child { border-color: var(--risk); background: var(--risk-soft); }
+  .defense { padding: 14px 16px; border-radius: var(--radius); background: var(--ok-soft); color: var(--ink); font-size: 15px; display: grid; gap: 4px; }
+  .defense strong { color: var(--ok); }
+
+  /* 12 decisões */
+  .decisions { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+  .dec-head, .dec { display: grid; grid-template-columns: 200px 1fr 1.3fr; gap: 16px; padding: 12px 16px; }
+  .dec-head { background: var(--sunk); }
+  .dec { border-top: 1px solid var(--line); font-size: 14.5px; }
+  .dec > * { min-width: 0; }
+  .dec-name { font-weight: 700; }
+  .dec-name small { display: block; font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .dec-them { color: var(--muted); }
+  .dec-us { font-weight: 500; }
+  .dec .tag { display: none; }
+  @media (max-width: 720px) {
+    .dec-head { display: none; }
+    .dec { grid-template-columns: 1fr; gap: 6px; }
+    .dec .tag { display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .dec-us .tag { color: var(--accent); }
+    .timeline li { grid-template-columns: 1fr; gap: 2px; }
+  }
+
+  .phase-cols { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+  .phase { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: var(--radius); padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .phase ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14.5px; }
+
+  .verify { display: grid; gap: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+  .verify-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; padding: 12px 16px; border-top: 1px solid var(--line); align-items: start; }
+  .verify-row:first-child { border-top: 0; }
+  .verify-row p { font-size: 14.5px; }
+  .verify-row .how { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+
+  footer { margin-top: 64px; padding-block: 28px 48px; border-top: 1px solid var(--line); }
+  footer p { font-size: 14px; color: var(--muted); max-width: 72ch; }
+  footer .stack { gap: 10px; }
+
+  @media (max-width: 520px) {
+    .wrap { padding-inline: 16px; }
+    section { padding-block: 44px 4px; }
+    .bar-row, .bar-scale { grid-template-columns: 76px 1fr auto; gap: 8px; }
+    .calc-row { grid-template-columns: 1fr auto; }
+    .calc-row .bar-track { grid-column: 1 / -1; grid-row: 2; }
+    .figure { padding: 16px; }
+  }
+</style>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="brand">Ativos<span>-Go</span></div>
+    <div class="label">Pesquisa de mercado · 12 out 2026</div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Seções">
+  <div class="wrap nav-scroll">
+    <ul>
+      <li><a href="#resumo">Resumo</a></li>
+      <li><a href="#ggmax">Como o GGMax funciona</a></li>
+      <li><a href="#reputacao">Reputação</a></li>
+      <li><a href="#concorrentes">Concorrentes</a></li>
+      <li><a href="#catalogo">O que vender</a></li>
+      <li><a href="#pagamentos">Pagamentos</a></li>
+      <li><a href="#seguranca">Segurança</a></li>
+      <li><a href="#lei">Lei e impostos</a></li>
+      <li><a href="#decisoes">12 decisões</a></li>
+      <li><a href="#plano">Plano</a></li>
+      <li><a href="#conferir">A conferir</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Quem assume o risco vence o GGMax</h1>
+      <p class="lead">O que 12 frentes de pesquisa descobriram sobre o GGMax e os maiores sites de contas, gift cards, keys e recargas para gamers, no Brasil e fora dele. E o que isso significa para a loja de vocês dois.</p>
+
+      <figure class="figure" style="margin:0">
+        <div class="figure-title">A proteção do GGMax acaba no dia 7. As contas são recuperadas depois.</div>
+        <div class="tl" role="img" aria-label="Linha do tempo de 0 a 120 dias. O GGMax segura o dinheiro por 4 dias em itens e 7 dias em contas. Reclamações relatam contas recuperadas pelo dono antigo após 15 dias, 21 dias e cerca de 4 meses.">
+          <div class="tl-track"><div class="tl-b7"></div><div class="tl-b4"></div></div>
+          <div class="tl-mark" style="left: calc(15 / 120 * 100%); top: 0;"><span>15 dias</span></div>
+          <div class="tl-mark" style="left: calc(21 / 120 * 100%); top: 22px;"><span>21 dias</span></div>
+          <div class="tl-mark end" style="right: 0; top: 0;"><span>~4 meses</span></div>
+          <div class="tl-axis">
+            <span style="left:0">dia 0</span>
+            <span style="left:25%">30</span>
+            <span style="left:50%">60</span>
+            <span style="left:75%">90</span>
+            <span style="left:100%">120 dias</span>
+          </div>
+        </div>
+        <div class="legend">
+          <span><i class="sw-solid"></i>GGMax segura o dinheiro: 4 dias (itens e moedas)</span>
+          <span><i class="sw-hatch"></i>7 dias (contas e serviços)</span>
+          <span><i class="sw-dot"></i>Conta recuperada pelo dono antigo (casos no Reclame Aqui)</span>
+        </div>
+        <p class="figure-note">Depois do prazo, os termos do GGMax dizem que ele "não garante e não detém mais a posse do valor pago". O comprador fica sozinho.</p>
+      </figure>
+    </div>
+
+    <section id="resumo" style="padding-top:32px">
+      <div class="sec-head">
+        <span class="label">Resumo em 1 minuto</span>
+        <h2>Cinco coisas para guardar</h2>
+      </div>
+      <ol class="summary">
+        <li><p><strong>O GGMax é intermediador.</strong> Segura o dinheiro de 4 a 7 dias, cobra de 9,99% a 12,99% do vendedor e, depois disso, diz que o problema é do vendedor.</p></li>
+        <li><p><strong>A reclamação nº 1 do setor é a conta recuperada pelo dono antigo</strong>, semanas ou meses depois. Por isso o GGMax tem nota 4,0 no Reclame Aqui e só 35,9% voltariam a comprar.</p></li>
+        <li><p><strong>Como loja própria, vocês respondem pelo produto de qualquer jeito</strong> (Código de Defesa do Consumidor). Então transformem isso em vantagem: garantia de verdade, escrita na página do produto.</p></li>
+        <li><p><strong>Comecem pelo que tem menos risco:</strong> gift cards e recargas de distribuidores autorizados, com Pix e venda só para maiores de 18.</p></li>
+        <li><p><strong>Contas entram depois</strong>, com origem comprovada, garantia por jogo e dados próprios para calcular quanto essa garantia custa.</p></li>
+      </ol>
+    </section>
+
+    <section id="ggmax">
+      <div class="sec-head read">
+        <span class="label">O líder</span>
+        <h2>Como o GGMax funciona</h2>
+        <p>GGMAX Tecnologia da Informação Ltda, de Maringá (PR), aberta em 2022. Tem de 4 a 18 milhões de visitas por mês, dependendo da ferramenta que mede. Cerca de 82% das pessoas entram digitando o endereço, ou seja, a marca é forte e o cliente volta.</p>
+      </div>
+
+      <div class="stack">
+        <ol class="steps">
+          <li><h3>Comprador paga à plataforma</h3><p>Pix, cartão, boleto, cripto, saldo ou GG Points. Compras abaixo de R$ 25 pagam uma taxa operacional que não é devolvida nem no cancelamento.</p></li>
+          <li><h3>Vendedor entrega no chat</h3><p>Entrega manual ou automática, dentro do chat do pedido. Passar WhatsApp ou Discord dá banimento permanente.</p></li>
+          <li><h3>O dinheiro fica retido</h3><p>4 dias para moedas e itens, 7 dias para contas e serviços. O comprador tem até uma data limite para reclamar.</p></li>
+          <li class="danger"><h3>Dinheiro liberado, proteção encerrada</h3><p class="quote">"A GGMAX não garante e não detém mais a posse do valor pago."</p><p>A partir daí, qualquer garantia é só do vendedor.</p></li>
+        </ol>
+
+        <div class="cols">
+          <div class="panel">
+            <span class="label">Quanto o vendedor paga</span>
+            <div class="table-box" style="border:0">
+              <table>
+                <thead><tr><th>Plano</th><th>Taxa por venda</th><th>O que ganha</th></tr></thead>
+                <tbody>
+                  <tr><td>Prata</td><td class="num">9,99%</td><td>Anúncio normal</td></tr>
+                  <tr><td>Ouro</td><td class="num">11,99%</td><td>Destaque na página inicial</td></tr>
+                  <tr><td>Diamante</td><td class="num">12,99%</td><td>Destaque também na busca</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="small muted">Saque grátis em até 2 dias úteis, ou R$ 3,50 para receber na hora. Para sacar, exige documento físico original.</p>
+          </div>
+          <div class="panel">
+            <span class="label">Brechas que viram diferencial para vocês</span>
+            <ul>
+              <li>Não encontramos verificação em duas etapas (2FA) nas contas dos usuários.</li>
+              <li>O blog oficial ensina o vendedor a <strong>tirar o 2FA</strong> da conta antes de vender.</li>
+              <li>Reembolso de compra no cartão vira saldo na plataforma, não dinheiro.</li>
+              <li>Contas da Supercell ficaram retidas 21 dias, sem essa regra na tabela pública.</li>
+              <li>Vende de tudo: seguidores, contas de Google Ads, acesso compartilhado a assinaturas.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reputacao">
+      <div class="sec-head read">
+        <span class="label">O que os clientes dizem</span>
+        <h2>Dá para ter boa reputação nesse nicho. O GGMax não tem.</h2>
+        <p>Notas do Reclame Aqui nos períodos mais recentes encontrados (2025 e 2026). A DFG, concorrente direta do GGMax, prova que dá para ser bem avaliado vendendo a mesma coisa.</p>
+      </div>
+
+      <div class="cols">
+        <figure class="figure" style="margin:0">
+          <div class="figure-title">Nota no Reclame Aqui (de 0 a 10)</div>
+          <div class="bars">
+            <div class="bar-row" title="DFG: nota 8,3, Ótima"><span class="bar-name">DFG</span><div class="bar-track"><div class="bar" style="width:83%"></div></div><span class="bar-val num">8,3</span></div>
+            <div class="bar-row" title="Codashop: nota 5,9, Ruim"><span class="bar-name">Codashop</span><div class="bar-track"><div class="bar" style="width:59%"></div></div><span class="bar-val num">5,9</span></div>
+            <div class="bar-row" title="GGMax: nota 4,0, Não recomendada"><span class="bar-name">GGMax</span><div class="bar-track"><div class="bar" style="width:40%"></div></div><span class="bar-val num">4,0</span></div>
+            <div class="bar-row" title="Nuuvem: nota 3,6, Não recomendada"><span class="bar-name">Nuuvem</span><div class="bar-track"><div class="bar" style="width:36%"></div></div><span class="bar-val num">3,6</span></div>
+            <div class="bar-scale"><span></span><div><span>0</span><span>5</span><span>10</span></div><span class="pad"></span></div>
+          </div>
+          <div class="legend" style="gap:6px 8px">
+            <span class="chip c-ok">DFG: Ótima</span>
+            <span class="chip c-warn">Codashop: Ruim</span>
+            <span class="chip c-risk">GGMax e Nuuvem: Não recomendada</span>
+          </div>
+        </figure>
+
+        <figure class="figure" style="margin:0">
+          <div class="figure-title">Voltariam a fazer negócio</div>
+          <div class="bars">
+            <div class="bar-row" title="DFG: 79,4% voltariam"><span class="bar-name">DFG</span><div class="bar-track"><div class="bar" style="width:79.4%"></div></div><span class="bar-val num">79%</span></div>
+            <div class="bar-row" title="GGMax: 35,9% voltariam"><span class="bar-name">GGMax</span><div class="bar-track"><div class="bar" style="width:35.9%"></div></div><span class="bar-val num">36%</span></div>
+            <div class="bar-row" title="Nuuvem: 20% voltariam"><span class="bar-name">Nuuvem</span><div class="bar-track"><div class="bar" style="width:20%"></div></div><span class="bar-val num">20%</span></div>
+            <div class="bar-scale"><span></span><div><span>0%</span><span>50%</span><span>100%</span></div><span class="pad"></span></div>
+          </div>
+          <p class="figure-note">A Nuuvem respondeu 100% das reclamações, mas só resolveu 18,6%. Responder não basta; o que conta é resolver.</p>
+        </figure>
+      </div>
+
+      <div class="cols" style="margin-top:18px">
+        <div class="panel">
+          <span class="label">Top reclamações sobre o GGMax</span>
+          <ul>
+            <li><strong>Conta recuperada pelo dono antigo</strong> depois de 15 dias, 21 dias, até 4 meses. Resposta padrão: "somos só intermediadores".</li>
+            <li><strong>Dinheiro do vendedor retido</strong>: prazo que passou de 7 para 21 dias depois da venda.</li>
+            <li><strong>Suporte lento</strong>: tempo médio de resposta de 36 dias em 2025.</li>
+            <li><strong>Taxas</strong>, inclusive a taxa do comprador que não volta no reembolso.</li>
+            <li><strong>Verificação de documentos</strong> recusando comprovantes.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <span class="label">O que os clientes elogiam nos sites bons</span>
+          <ul>
+            <li>Entrega rápida.</li>
+            <li>Dinheiro retido até a entrega (o comprador se sente seguro).</li>
+            <li>Vendedor ou loja que responde.</li>
+            <li>Resolução rápida de problemas (ponto forte da DFG).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="concorrentes">
+      <div class="sec-head read">
+        <span class="label">Mercado</span>
+        <h2>Concorrentes no Brasil e lá fora</h2>
+        <p>Os melhores sites de fora já fazem o que o GGMax não faz: prazo e garantia que mudam conforme o risco de cada jogo, e garantia estendida paga.</p>
+      </div>
+
+      <div class="stack">
+        <div class="tabs" role="tablist" aria-label="Região">
+          <button class="tab" role="tab" id="tab-br" aria-selected="true" aria-controls="panel-br">Brasil</button>
+          <button class="tab" role="tab" id="tab-ext" aria-selected="false" aria-controls="panel-ext" tabindex="-1">Exterior</button>
+        </div>
+
+        <div id="panel-br" role="tabpanel" aria-labelledby="tab-br">
+          <div class="table-box">
+            <table class="wide-table">
+              <thead><tr><th>Site</th><th>Modelo</th><th>Taxa do vendedor</th><th>Reputação</th></tr></thead>
+              <tbody>
+                <tr><td>GGMax</td><td>Marketplace</td><td class="num">9,99% a 12,99%</td><td><span class="chip c-risk">4,0 · Não recomendada</span></td></tr>
+                <tr><td>DFG</td><td>Marketplace</td><td class="num">R$ 0,30 + 4,99% a 7,99%</td><td><span class="chip c-ok">8,3 · Ótima</span></td></tr>
+                <tr><td>Desapego Games</td><td>Marketplace</td><td class="num">9,99% a 12,99% (igual ao GGMax)</td><td><span class="chip c-risk">Não recomendada</span></td></tr>
+                <tr><td>GameMarket</td><td>Marketplace</td><td>~5% (não confirmado)</td><td><span class="chip c-risk">4,7 · Não recomendada</span></td></tr>
+                <tr><td>Rei dos Coins</td><td>Loja própria, desde 2015</td><td>Não se aplica</td><td>Mostra CNPJ e sede; não vende contas</td></tr>
+                <tr><td>Nuuvem</td><td>Loja própria</td><td>Não se aplica</td><td><span class="chip c-risk">3,6 · Não recomendada</span></td></tr>
+                <tr><td>Codashop</td><td>Loja de recarga</td><td>Não se aplica</td><td><span class="chip c-warn">5,9 · Ruim</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="small muted" style="margin-top:10px">Também existem lojas de skins de CS2 (DashSkins, Bleik Store), lojas de Robux e dezenas de sites de elojob, muitos sem CNPJ visível.</p>
+        </div>
+
+        <div id="panel-ext" role="tabpanel" aria-labelledby="tab-ext" hidden>
+          <div class="table-box">
+            <table class="wide-table">
+              <thead><tr><th>Site</th><th>Taxa do vendedor</th><th>Dinheiro retido</th><th>Garantia de conta</th></tr></thead>
+              <tbody>
+                <tr><td>G2G</td><td>~10% a 15%</td><td>72 horas</td><td>14 dias</td></tr>
+                <tr><td>Eldorado.gg</td><td>5% moedas, 10% contas</td><td>4 a 14 dias, conforme o jogo</td><td>5 dias grátis; extensão paga de 3 ou 6 meses</td></tr>
+                <tr><td>PlayerAuctions</td><td>12,99% + US$ 0,99</td><td>Até o comprador confirmar</td><td>7 a 30 dias; seguro de até 1 ano</td></tr>
+                <tr><td>Z2U</td><td>5% a 9%</td><td>Pode reter mais de 180 dias</td><td>Vendedor deposita caução de US$ 100</td></tr>
+                <tr><td>Skinport / CSFloat / DMarket</td><td>8% / 2% / 2%</td><td>Trava de 7 dias da Steam</td><td>Não se aplica (skins)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <span class="label">Lição dos sites de fora</span>
+            <p>Na Eldorado, o dinheiro fica retido 4 dias em gift card e 14 dias em contas de GTA e Roblox. Quanto mais arriscado o jogo, maior o prazo e a garantia. E vendem garantia estendida, que gera receita e confiança ao mesmo tempo.</p>
+          </div>
+          <div class="panel" style="border-color:var(--risk)">
+            <span class="label" style="color:var(--risk)">Alerta jurídico</span>
+            <p>Roblox e Take-Two (dona do GTA) processaram a PlayerAuctions em 2025. O alvo foi a promessa de reembolso se a conta for <strong>banida</strong>, que segundo elas incentiva conta hackeada, e o uso de artes oficiais sem licença.</p>
+            <p class="small muted">Garantam contra recuperação pelo dono antigo, não contra banimento. E nada de imagens oficiais dos jogos sem autorização.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="catalogo">
+      <div class="sec-head read">
+        <span class="label">Catálogo</span>
+        <h2>O que vender primeiro</h2>
+        <p>O Brasil é o maior mercado de games da América Latina. Cerca de 44% jogam principalmente no celular, o Pix é o meio de pagamento mais usado e 60 milhões de adultos não têm cartão de crédito. Gift card e recarga resolvem isso.</p>
+      </div>
+
+      <div class="stack">
+        <div class="products">
+          <article class="product">
+            <div class="product-top"><h3>Gift cards em reais</h3><span class="chip c-ok">Base</span></div>
+            <p class="small muted">PSN, Xbox, Steam, Google Play, de distribuidor autorizado.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Baixa, ~2% a 8%</dd><dt>Risco</dt><dd>Fraude no pagamento</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Recargas por ID</h3><span class="chip c-ok">Conveniência</span></div>
+            <p class="small muted">Free Fire, Genshin e outros, via fornecedor oficial.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Baixa (a própria publisher dá bônus)</dd><dt>Risco</dt><dd>ID errado, fornecedor fora do ar</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Coaching sem login</h3><span class="chip c-ok">Premium</span></div>
+            <p class="small muted">Aulas e análise de partidas, sem entrar na conta do cliente.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Depende das horas de vocês</dd><dt>Risco</dt><dd>Baixo; não é boosting</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Robux e cartões Roblox</h3><span class="chip c-warn">Com cuidado</span></div>
+            <p class="small muted">Só de revendedor autorizado. A Roblox anula cartões de quem não é.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Baixa a média</dd><dt>Risco</dt><dd>Público menor de idade</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Keys de PC</h3><span class="chip c-warn">Com cuidado</span></div>
+            <p class="small muted">Só de distribuidor com nota fiscal. Nunca do mercado cinza.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Baixa (oficiais)</dd><dt>Risco</dt><dd>Key revogada ou de outra região</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Contas</h3><span class="chip c-warn">Depois</span></div>
+            <p class="small muted">Valorant, Steam, Free Fire, com origem comprovada e garantia.</p>
+            <dl class="meta"><dt>Margem</dt><dd>Alta</dd><dt>Risco</dt><dd>Viola termos dos jogos; recuperação; banimento</dd></dl>
+          </article>
+          <article class="product">
+            <div class="product-top"><h3>Boost com login, dinheiro de GTA, skins de CS2</h3><span class="chip c-risk">Fora</span></div>
+            <p class="small muted">A Riot caça contas compradas desde set/2025. A Valve mudou regras e o mercado de skins perdeu 25% do valor em horas (out/2025).</p>
+            <dl class="meta"><dt>Margem</dt><dd>Alta e instável</dd><dt>Risco</dt><dd>Banimento, processos</dd></dl>
+          </article>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <span class="label">Ordem sugerida</span>
+            <ol class="timeline">
+              <li><span class="when">Mês 1</span><span>Recargas de Free Fire, gift cards de PSN, Xbox, Steam e Google Play, Roblox com regra de idade.</span></li>
+              <li><span class="when">Mês 2 em diante</span><span>Valorant: pontos, coaching e, com cuidado, contas. Só se vocês dominarem o jogo.</span></li>
+              <li><span class="when">Mais tarde</span><span>Contas de Free Fire, skins de CS2, moedas de EA FC.</span></li>
+            </ol>
+          </div>
+          <div class="panel">
+            <span class="label">Onde comprar o estoque</span>
+            <p><strong>No Brasil:</strong> Celcoin, Hype Games e RV Hub vendem códigos por sistema (API), em reais.</p>
+            <p><strong>Fora:</strong> Reloadly, Bamboo, Razer Gold e o programa de revenda da Codashop.</p>
+            <p class="small muted">Nenhum publica tabela de desconto. É preciso pedir cotação a cada um.</p>
+          </div>
+          <div class="panel">
+            <span class="label">Demanda</span>
+            <p>O Brasil responde por cerca de <strong>28% do gasto mundial</strong> dentro do Free Fire e é o <strong>2º maior mercado do Roblox</strong> (cresceu 183% em 4 anos).</p>
+            <p class="small muted">GTA VI sai em 19/11/2026 só para PS5 e Xbox. A procura inicial vai para gift cards PSN e Xbox.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="pagamentos">
+      <div class="sec-head read">
+        <span class="label">Pagamentos</span>
+        <h2>Pix na frente, mas com uma regra de ouro</h2>
+        <p>O Stripe trata itens de jogo e gift cards como negócio restrito, então não serve. O caminho é um gateway brasileiro que confirme <strong>por escrito</strong> que aceita o segmento, e um segundo gateway reserva para o caso de bloqueio.</p>
+      </div>
+
+      <div class="stack">
+        <div class="figure calc">
+          <div class="figure-title">Simulador: quanto custa receber um pedido</div>
+          <div class="calc-input">
+            <label for="ticket">Valor do pedido</label>
+            <div class="money"><span>R$</span><input id="ticket" type="number" inputmode="decimal" min="1" max="10000" step="1" value="50"></div>
+            <button class="preset" type="button" data-v="20">Recarga R$ 20</button>
+            <button class="preset" type="button" data-v="100">Gift card R$ 100</button>
+            <button class="preset" type="button" data-v="300">Conta R$ 300</button>
+          </div>
+          <div class="calc-out" id="calc-out" aria-live="polite"></div>
+          <div class="calc-ref" id="calc-ref"></div>
+          <p class="figure-note">Tarifas de balcão encontradas em out/2026, sem negociação. Conferir dentro da conta de cada gateway antes de decidir.</p>
+        </div>
+
+        <div class="panel" style="gap:14px">
+          <span class="label">O golpe da triangulação (o Pix voltou a ser reversível)</span>
+          <p>Desde fevereiro de 2026, o MED 2.0 do Banco Central permite rastrear e devolver dinheiro de golpe por até 5 contas seguidas. Na prática, quem perde é a loja:</p>
+          <ol class="flow">
+            <li>O golpista anuncia um produto barato numa rede social.</li>
+            <li>A vítima paga o QR Code Pix da <strong>loja de vocês</strong>, achando que paga o golpista.</li>
+            <li>A loja vê o Pix cair e entrega o produto ao golpista.</li>
+            <li>A vítima aciona o MED. O dinheiro volta para ela e a loja fica sem o produto e sem o dinheiro.</li>
+          </ol>
+          <div class="defense"><strong>Defesa: o CPF de quem paga o Pix tem que ser o mesmo CPF verificado do comprador.</strong><span>Pix de terceiro é devolvido na hora. Mais: QR Code único por pedido, liberação só pela confirmação do gateway (nunca por print de comprovante) e atenção extra a pedidos altos de clientes novos.</span></div>
+        </div>
+
+        <div class="cols">
+          <div class="panel">
+            <span class="label">Cartão de crédito</span>
+            <p>Games foram a categoria com <strong>mais tentativas de fraude</strong> no e-commerce brasileiro em jan/2025 (ClearSale). Gift cards chegaram a 12% de tentativas de fraude em datas comerciais.</p>
+            <ul>
+              <li>Antifraude em toda compra e 3-D Secure na primeira compra.</li>
+              <li>Receber em 30 dias (mais barato e cria colchão contra estorno).</li>
+              <li>Guardar IP, aparelho e login de cada compra desde o primeiro dia, para ganhar disputas.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <span class="label">Por que loja própria</span>
+            <p>Vender gift card dentro do GGMax, pagando 9,99% a 12,99% de comissão, provavelmente dá prejuízo, porque a margem do gift card é de um dígito. A loja própria com Pix custa cerca de 1% ou menos por pedido.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="seguranca">
+      <div class="sec-head read">
+        <span class="label">Segurança</span>
+        <h2>Segurança que o cliente enxerga</h2>
+        <p>Todo concorrente diz que é "seguro", e a palavra perdeu força. O diferencial é mostrar regras verificáveis.</p>
+      </div>
+      <div class="cols">
+        <div class="panel">
+          <h3>Cofre de entrega</h3>
+          <p>Códigos e senhas guardados com criptografia. O cliente vê uma única vez, depois de confirmar a identidade, e cada visualização fica registrada.</p>
+        </div>
+        <div class="panel">
+          <h3>Conta do cliente protegida</h3>
+          <p>Verificação em duas etapas (2FA) ou chave de acesso, obrigatória para revelar códigos. Aviso quando alguém entra de um aparelho novo.</p>
+        </div>
+        <div class="panel">
+          <h3>Origem das contas</h3>
+          <p>Fornecedor com documento e selfie, e-mail de criação da conta, comprovantes de compra, um tempo de espera antes de revender e pagamento ao fornecedor em parcelas.</p>
+        </div>
+        <div class="panel">
+          <h3>Entrega de conta completa</h3>
+          <p>Troca de e-mail, telefone, senha, 2FA e logins vinculados, com checklist que o comprador confirma. Reembolso de conta só depois de retomar o acesso, para evitar o golpe de pedir reembolso e continuar usando.</p>
+        </div>
+        <div class="panel">
+          <h3>Contra sites falsos</h3>
+          <p>Já existem cópias do GGMax (ex.: ggmaxpro.life). Página de canais oficiais, e-mail protegido contra falsificação e o aviso "nunca pedimos sua senha" em toda mensagem.</p>
+        </div>
+        <div class="panel">
+          <h3>Proteção do site</h3>
+          <p>Cloudflare no plano Pro (o gratuito não traz as regras de proteção principais), verificação anti-robô no cadastro e no pagamento, e painel de administração com chave física.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="lei">
+      <div class="sec-head read">
+        <span class="label">Lei e impostos</span>
+        <h2>O que a lei muda para vocês</h2>
+        <p>Resumo para conversar com um advogado e um contador. Isto não é parecer jurídico.</p>
+      </div>
+      <div class="stack">
+        <div class="panel">
+          <span class="label">ECA Digital (Lei 15.211/2025)</span>
+          <ol class="timeline">
+            <li><span class="when">17/03/2026</span><span>A lei entrou em vigor. Alcança jogos e marketplaces que menores provavelmente acessam. Não vale só a pessoa dizer que é maior de idade.</span></li>
+            <li><span class="when">Ago a nov/2026</span><span>Fase de adequação de jogos online e marketplaces, segundo o cronograma da ANPD.</span></li>
+            <li><span class="when">Jan/2027</span><span>Começam as multas. Relatos falam em até R$ 50 milhões ou 10% do faturamento.</span></li>
+          </ol>
+          <p class="small"><strong>Para vocês:</strong> vender só para maiores de 18 com data de nascimento validada pelo CPF e não vender caixas, sorteios ou "contas aleatórias".</p>
+        </div>
+        <div class="cols">
+          <div class="panel">
+            <h3>Consumidor (CDC)</h3>
+            <p>Como loja própria, vocês são o fornecedor e respondem por conta banida ou recuperada, key inválida ou gift card da região errada. Marketplace que intermedeia o pagamento também responde (decisão do STJ de 2023).</p>
+          </div>
+          <div class="panel">
+            <h3>Venda de contas</h3>
+            <p>Não achamos lei que proíba. O risco é quebrar os termos dos jogos: a Garena bane para sempre a conta negociada e a Riot proíbe a venda. O prejuízo fica com a loja e o comprador.</p>
+          </div>
+          <div class="panel">
+            <h3>Impostos</h3>
+            <p>Software paga ISS, não ICMS (STF). Para gift card, conta e boost não há regra clara: levar ao contador. A reforma (IBS e CBS) cobra das plataformas a partir de 2027. MEI não permite sócio, então o provável é uma LTDA no Simples.</p>
+          </div>
+          <div class="panel">
+            <h3>Quando abrirem para terceiros</h3>
+            <p>Se a loja guardar o dinheiro dos vendedores, entra nas regras do Banco Central (Res. BCB 522/2025). O caminho seguro é o gateway dividir o pagamento direto para cada vendedor.</p>
+          </div>
+          <div class="panel">
+            <h3>Copiar o GGMax</h3>
+            <p>Funcionalidades e fluxos podem ser reproduzidos. Código, textos, imagens, logo e o visual do site não. Nem os nomes de plano Prata, Ouro e Diamante.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="decisoes">
+      <div class="sec-head read">
+        <span class="label">Estratégia</span>
+        <h2>12 decisões para ser melhor que o GGMax</h2>
+        <p>A vantagem de vocês é o controle: escolhem o estoque, definem a garantia e respondem o cliente. A desvantagem é ter menos variedade e assumir sozinhos todo o risco. A proposta é "menos opções, mais garantia".</p>
+      </div>
+      <div class="decisions" role="table" aria-label="Comparação GGMax e Ativos-Go">
+        <div class="dec-head" role="row"><span class="label" role="columnheader">Tema</span><span class="label" role="columnheader">GGMax hoje</span><span class="label" role="columnheader" style="color:var(--accent)">Ativos-Go</span></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Papel</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>"Somos só intermediadores"</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Assumir que é a fornecedora. Nunca prometer "garantia vitalícia".</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Garantia</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>4 a 7 dias, prazo só no chat</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Tabela pública por jogo na página do produto, com todas as exceções. Garantia estendida opcional paga.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Origem</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Vendedor guarda documentos se pedirem</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Fornecedor verificado, carência antes de revender, selo "conta com procedência".</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Catálogo</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Mais de 150 categorias, inclusive redes sociais</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>3 a 5 jogos bem feitos. 100% gamer: sem seguidores, bots ou mercado cinza.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Preço</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Taxa extra abaixo de R$ 25; destaque pago na busca</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Preço final fechado desde a vitrine. Vitrine por relevância, não por pagamento.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Pagamento</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Cliente renuncia ao estorno no banco por contrato</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Pix com CPF do pagador igual ao do comprador, dois gateways, cartão com 3-D Secure e antifraude.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Reembolso</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Cartão vira saldo; taxa não volta</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Dinheiro de volta pelo mesmo meio, com taxas. Regras mostradas antes de pagar.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Conta do cliente</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Sem 2FA encontrado; blog manda tirar o 2FA</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>2FA ou chave de acesso, cofre com revelação única, aviso de aparelho novo.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Atendimento</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>36 dias de resposta média no Reclame Aqui (2025)</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Atendimento humano com prazo publicado. 100% das reclamações respondidas em até 48 horas.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Idade</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Sem informação</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Venda só para maiores de 18 com CPF validado. Nada de sorteio ou caixa.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Marca</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Sites falsos circulando</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>CNPJ, endereço e rosto dos sócios no site. Marca registrada no INPI.</div></div>
+        <div class="dec" role="row"><div class="dec-name" role="cell">Futuro marketplace</div><div class="dec-them" role="cell"><span class="tag">GGMax hoje</span>Prazos mudados depois da venda</div><div class="dec-us" role="cell"><span class="tag">Ativos-Go</span>Sistema pronto para vendedores desde o início. Regras publicadas que nunca mudam depois da venda. Taxa de 5% a 8%, na faixa da DFG.</div></div>
+      </div>
+    </section>
+
+    <section id="plano">
+      <div class="sec-head read">
+        <span class="label">Plano</span>
+        <h2>O que fazer, e quando</h2>
+        <p>O fim de 2026 concentra a procura por gift cards, e o ECA Digital começa a multar em janeiro. Lançar agora com gift cards, recargas e regra de maioridade pega o pico e chega adequado à fiscalização.</p>
+      </div>
+      <div class="stack">
+        <div class="phase-cols">
+          <div class="phase">
+            <span class="label">Antes de lançar</span>
+            <ul>
+              <li>Termos de uso, garantia e reembolso publicados</li>
+              <li>Pix com regra do CPF e cartão com 3-D Secure</li>
+              <li>Cofre de entrega e 2FA</li>
+              <li>Regra de maioridade com CPF</li>
+              <li>Cloudflare Pro e painel admin protegido</li>
+              <li>Origem do estoque com carência</li>
+            </ul>
+          </div>
+          <div class="phase">
+            <span class="label">Primeiros 90 dias</span>
+            <ul>
+              <li>Verificação com documento e selfie em compras altas</li>
+              <li>Pacote automático de provas para estornos e MED</li>
+              <li>Monitorar sites falsos com o nome da loja</li>
+              <li>Teste de invasão feito por terceiros</li>
+              <li>100% de resposta no Reclame Aqui</li>
+              <li>Lançar a garantia estendida nos jogos de menor risco</li>
+            </ul>
+          </div>
+          <div class="phase">
+            <span class="label">Antes de abrir para vendedores</span>
+            <ul>
+              <li>Prazos de retenção publicados por jogo</li>
+              <li>Pagamento dividido pelo gateway</li>
+              <li>Saque só para conta no mesmo CPF ou CNPJ</li>
+              <li>Caução para categorias de alto risco</li>
+              <li>Filtro de contato externo no chat</li>
+              <li>Mediação com critérios públicos e reembolso em dinheiro</li>
+            </ul>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="label">Datas que importam</span>
+          <ol class="timeline">
+            <li><span class="when">19/11/2026</span><span>Lançamento do GTA VI (PS5 e Xbox): pico de gift cards PSN e Xbox.</span></li>
+            <li><span class="when">27/11/2026</span><span>Black Friday.</span></li>
+            <li><span class="when">Dez/2026</span><span>13º salário, Natal e liquidação de fim de ano da Steam (17/12 a 04/01).</span></li>
+            <li><span class="when">Jan/2027</span><span>ECA Digital começa a multar. IBS e CBS começam a ser cobrados das plataformas em 2027.</span></li>
+          </ol>
+        </div>
+        <div class="panel">
+          <span class="label">Tecnologia e custo</span>
+          <p>Código próprio em TypeScript (ou o Medusa, gratuito, como base de loja), banco PostgreSQL e servidores em São Paulo. Infraestrutura de cerca de <strong>US$ 50 a 150 por mês</strong> no começo. O custo real é de gente: estimativa de <strong>10 a 16 semanas</strong> para a primeira versão da loja.</p>
+          <p class="small muted">As skills do Replica, já instaladas, vão mapear o fluxo do GGMax (só páginas públicas) e ajudar a construir, sempre com marca, textos e visual próprios.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="conferir">
+      <div class="sec-head read">
+        <span class="label">Transparência</span>
+        <h2>O que ainda precisa ser conferido</h2>
+        <p>A internet do ambiente estava restrita: quase tudo veio de trechos de resultados de busca, não das páginas completas. Antes de decidir, confiram estes pontos.</p>
+      </div>
+      <div class="verify">
+        <div class="verify-row"><p>Taxas e prazos do GGMax (9,99% a 12,99%; 4 e 7 dias; taxa abaixo de R$ 25)</p><span class="chip c-ok">Confirmado</span><span class="how">Repetido em várias fontes oficiais. Reabrir as páginas de tarifas e termos.</span></div>
+        <div class="verify-row"><p>Notas do Reclame Aqui (GGMax 4,0; DFG 8,3)</p><span class="chip c-ok">Confirmado</span><span class="how">Os números de 2026 do GGMax têm inconsistências. Ver a página ao vivo.</span></div>
+        <div class="verify-row"><p>Visitas do GGMax (4 a 18 milhões por mês)</p><span class="chip c-warn">Divergente</span><span class="how">Ferramentas diferentes medem diferente.</span></div>
+        <div class="verify-row"><p>Tarifas dos gateways de pagamento</p><span class="chip c-warn">A verificar</span><span class="how">Ver a tabela dentro da conta de cada um e pedir aceitação do segmento por escrito.</span></div>
+        <div class="verify-row"><p>Margem dos distribuidores (2% a 8% em gift cards)</p><span class="chip c-warn">A verificar</span><span class="how">Pedir cotação a Celcoin, Hype Games, RV Hub, Razer Gold e Codashop.</span></div>
+        <div class="verify-row"><p>Impostos sobre gift card, conta e boost; MEI ou LTDA</p><span class="chip c-risk">Sem resposta</span><span class="how">Contador, de preferência com consulta formal à prefeitura.</span></div>
+        <div class="verify-row"><p>Direito de arrependimento em código já revelado</p><span class="chip c-risk">Sem resposta</span><span class="how">Advogado de direito do consumidor.</span></div>
+        <div class="verify-row"><p>Quantas contas são recuperadas por jogo</p><span class="chip c-risk">Não existe dado público</span><span class="how">Medir nos primeiros meses de operação.</span></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap stack">
+    <div class="brand">Ativos<span>-Go</span></div>
+    <p>Feito a partir do relatório "Quem assume o risco vence o GGMax" e de 12 notas de pesquisa (GGMax, concorrentes no Brasil e no exterior, lojas de gift card e recarga, segurança, reclamações, jurídico, pagamentos, fornecedores, tecnologia, experiência do usuário e mercado gamer). O relatório completo traz cerca de 200 fontes com link.</p>
+    <p>Pesquisa de 12/10/2026. Não é parecer jurídico nem contábil.</p>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    // Abas de concorrentes
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+    function select(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { select(t); });
+      t.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+          var next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+          select(next); next.focus(); e.preventDefault();
+        }
+      });
+    });
+
+    // Simulador de tarifas
+    var OPTIONS = [
+      { nome: 'Pix · Mercado Pago (0,99%)', pct: 0.99 },
+      { nome: 'Pix · Efí (1,19%)', pct: 1.19 },
+      { nome: 'Pix · AbacatePay (R$ 0,80 fixo)', fixo: 0.80 },
+      { nome: 'Pix · Asaas (R$ 1,99 fixo)', fixo: 1.99 },
+      { nome: 'Cartão · Mercado Pago, receber em 30 dias (3,98%)', pct: 3.98 },
+      { nome: 'Cartão · Mercado Pago, receber na hora (4,98%)', pct: 4.98 }
+    ];
+    var brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+    var pctFmt = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
+    function custos(valor) {
+      return OPTIONS.map(function (o) {
+        var c = o.pct != null ? valor * o.pct / 100 : o.fixo;
+        return { nome: o.nome, custo: Math.round(c * 100) / 100 };
+      }).sort(function (a, b) { return a.custo - b.custo; });
+    }
+    window.__custos = custos;
+    var input = document.getElementById('ticket');
+    var out = document.getElementById('calc-out');
+    var ref = document.getElementById('calc-ref');
+    function render() {
+      var v = parseFloat(String(input.value).replace(',', '.'));
+      if (!isFinite(v) || v <= 0) {
+        out.innerHTML = '<p class="small muted">Digite um valor maior que zero.</p>';
+        ref.textContent = '';
+        return;
+      }
+      var rows = custos(v);
+      var max = rows[rows.length - 1].custo || 1;
+      out.innerHTML = rows.map(function (r, i) {
+        var w = Math.max(1, r.custo / max * 100);
+        return '<div class="calc-row" title="' + r.nome + ': ' + brl.format(r.custo) + '">' +
+          '<span>' + r.nome + (i === 0 ? ' <span class="chip c-ok">mais barato</span>' : '') + '</span>' +
+          '<div class="bar-track"><div class="bar" style="width:' + w.toFixed(1) + '%"></div></div>' +
+          '<span class="cost">' + brl.format(r.custo) + ' <small>' + pctFmt.format(r.custo / v * 100) + '%</small></span>' +
+          '</div>';
+      }).join('');
+      var gg = Math.round(v * 9.99) / 100;
+      ref.innerHTML = 'Para comparar: vendendo esse mesmo pedido dentro do GGMax no plano mais barato (9,99%), a comissão seria <strong>' + brl.format(gg) + '</strong>, fora a tarifa do pagamento.';
+    }
+    input.addEventListener('input', render);
+    Array.prototype.forEach.call(document.querySelectorAll('.preset'), function (b) {
+      b.addEventListener('click', function () { input.value = b.getAttribute('data-v'); render(); });
+    });
+    render();
+
+    // Destaque da seção atual na navegação
+    var links = Array.prototype.slice.call(document.querySelectorAll('.nav a'));
+    var map = {};
+    links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+    if ('IntersectionObserver' in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            links.forEach(function (a) { a.classList.remove('on'); });
+            var a = map[en.target.id];
+            if (a) {
+              a.classList.add('on');
+              var c = a.closest('.nav-scroll');
+              if (c) {
+                var ar = a.getBoundingClientRect(), cr = c.getBoundingClientRect();
+                c.scrollLeft += (ar.left + ar.width / 2) - (cr.left + cr.width / 2);
+              }
+            }
+          }
+        });
+      }, { rootMargin: '-45% 0px -50% 0px' });
+      document.querySelectorAll('section[id]').forEach(function (s) { io.observe(s); });
+    }
+  })();
+</script>
