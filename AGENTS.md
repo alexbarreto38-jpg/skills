@@ -372,3 +372,14 @@ failure it would have reported.
   to collapse, and the regression looks like a capability problem when it is a prompt
   problem. Ask for everything with a severity attached and filter in a separate pass —
   `c-review` and `rust-review` do this correctly if you want a model to copy.
+- **Continuity.** A blocker stops only the work that depends on it; finish the
+  independent parts that are still in scope before reporting it. When resuming from a
+  handoff or summary, check the real checkout, branch, and `make check` output before
+  trusting what it says was done. Never report an integration or background run you
+  cannot observe.
+- **Review cycles after a change.** When an implementation or fix cycle ends, suggest a
+  follow-up round of 3–8 code-review cycles — fewer for a small, contained change, more
+  for a validator, hook, or security-skill change — with the foci it should cover and a
+  ready-to-paste prompt naming `make check`. Suggest it; do not start it unasked. This
+  is a convention adopted from the Vibe Coding Toolkit (see `docs/setup.md`), not a
+  quality guarantee.
