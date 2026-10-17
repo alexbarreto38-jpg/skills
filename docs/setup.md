@@ -38,7 +38,7 @@ toolkit's template. The adoption therefore reconciles instead of replacing anyth
   repo": continuity on blockers and handoffs, and suggesting 3–8 review cycles after a change.
 - **No project-wide plugin activation.** Enabling Superpowers, Ponytail, Caveman or Context7
   through a committed `.claude/settings.json` would change every contributor's sessions,
-  so the maintainer declined it. Install them per user instead (see below).
+  so it was left out when the scope was chosen. Install them per user instead (see below).
 
 ## Document mapping
 
@@ -68,7 +68,7 @@ toolkit's template. The adoption therefore reconciles instead of replacing anyth
 | Subagent policy | reused | `AGENTS.md` → "Subagents" bullet already covers it |
 | Hooks | reused | plugin hooks follow `AGENTS.md` → Hooks; no repo-level hook added |
 | Anthropic skills (skill-creator) | reused | available from the client; `AGENTS.md` links the authoring docs |
-| ESLint/Biome quality gates | not applicable | no JS/TS application; lint is ruff, shellcheck and shfmt |
+| ESLint/Biome quality gates | not applicable | JS is limited to plugin dynamic workflows and `*.test.mjs` suites, which run under `make js-tests`; the toolkit's gates target Next.js apps. Lint here is ruff, shellcheck and shfmt |
 | Next.js, Drizzle, Zod, Pino templates | not applicable | no application |
 | Vercel skills, agent-browser, Chrome DevTools MCP | not applicable | no web UI |
 | Obsidian memory | not applicable | no concrete need |
